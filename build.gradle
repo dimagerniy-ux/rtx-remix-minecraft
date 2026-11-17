@@ -568,7 +568,7 @@ def verifyPackageJarTask = tasks.register('verifyPackageJar') {
         def archive = packageJarArchive.get().asFile
         def zip = new java.util.zip.ZipFile(archive)
         try {
-            def required = ['META-INF/MANIFEST.MF', 'META-INF/neoforge.mods.toml', 'native/rtx.conf']
+            def required = ['META-INF/MANIFEST.MF', 'META-INF/neoforge.mods.toml', 'native/rtx.conf', 'rtx-remix-shipped-payload.sha256']
             buildArches.each { arch ->
                 required.add("native/remix-sdk-${arch}/d3d9.dll")
                 required.add("native/remix-sdk-${arch}/remixbridge.dll")
