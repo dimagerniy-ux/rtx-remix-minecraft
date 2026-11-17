@@ -4,6 +4,7 @@
  */
 package com.nvidia.rtxremix.minecraft.logic;
 
+import net.neoforged.neoforge.common.IOUtilities;
 import net.minecraft.SharedConstants;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -160,6 +161,8 @@ class ZonePersistentStateTest {
 
         ensureGameVersionForPersistentStateSave();
         state.save(file.toFile(), null);
+        // NeoForge writes saved data on its IO worker.
+        IOUtilities.waitUntilIOWorkerComplete();
 
         assertFalse(state.isDirty());
         CompoundTag root = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
