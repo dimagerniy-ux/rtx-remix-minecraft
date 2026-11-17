@@ -198,27 +198,22 @@ class ScriptEncodingTests(unittest.TestCase):
         )
 
 
-class AccessWidenerHeaderTests(unittest.TestCase):
-    """The access widener is the one headered file with a format constraint.
+class AccessTransformerHeaderTests(unittest.TestCase):
+    """NeoForge uses a plain-text access transformer instead of Fabric's widener."""
 
-    Fabric Loom parses the first line as the format header and rejects anything
-    above it with ClassTweakerFormatException, so the SPDX block has to sit
-    below it. That is easy to "fix" into a broken build during a header sweep.
-    """
+    PATH = Path("src/main/resources/META-INF/accesstransformer.cfg")
 
-    PATH = Path("src/main/resources/rtx-remix-renderer.accesswidener")
-
-    def test_format_header_is_still_the_first_line(self):
-        lines = read_text(REPO_ROOT / self.PATH).splitlines()
-        self.assertTrue(
-            lines[0].startswith("accessWidener "),
-            "the accessWidener format header must remain line 1; Loom rejects anything above it",
-        )
-
-    def test_spdx_header_is_present_below_the_format_header(self):
+    def test_transformer_keeps_its_spdx_header(self):
         text = read_text(REPO_ROOT / self.PATH)
+        self.assertTrue(text.startswith("# SPDX-FileCopyrightText:"))
         self.assertIn(SPDX_LICENSE_LINE, text)
-        self.assertLess(text.index("accessWidener "), text.index("SPDX-License-Identifier"))
+
+    def test_transformer_uses_neoforge_access_directives(self):
+        lines = read_text(REPO_ROOT / self.PATH).splitlines()
+        entries = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+        self.assertTrue(entries, "access transformer must contain entries")
+        self.assertTrue(all(line.startswith(("public ", "public-f ")) for line in entries))
+        self.assertFalse((REPO_ROOT / "src/main/resources/rtx-remix-renderer.accesswidener").exists())
 
 
 class ContributionDocumentTests(unittest.TestCase):
