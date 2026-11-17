@@ -90,6 +90,9 @@ public class BlockTextureManager {
     private RemixTexture atlasSssTex;
     private RemixTexture atlasSssAlbedoTex;
     private int atlasW, atlasH;
+    /** Original-atlas pixels per captured pixel; keeps large PBR packs below Java array limits. */
+    private int atlasScale = 1;
+    private static final long MAX_CAPTURED_ATLAS_BYTES = 128L * 1024 * 1024;
     private final List<SpriteEntry> sprites = new ArrayList<>();
     private final Map<ResourceLocation, SpriteEntry> spriteById = new HashMap<>();
     private final Map<Long, RemixMaterial> materials = new HashMap<>();
@@ -169,12 +172,13 @@ public class BlockTextureManager {
         public boolean hasPBR, hasSSS;
         float[] lightColor;
 
-        SpriteEntry(int i, ResourceLocation id, TextureAtlasSprite s) {
+        SpriteEntry(int i, ResourceLocation id, TextureAtlasSprite s, int scale) {
             this.index = i; this.id = id;
             u0 = s.getU0(); v0 = s.getV0(); u1 = s.getU1(); v1 = s.getV1();
-            pixX = s.getX(); pixY = s.getY();
             SpriteContents contents = s.contents();
-            pixW = contents.width(); pixH = contents.height();
+            pixX = s.getX() / scale; pixY = s.getY() / scale;
+            pixW = Math.max(1, (s.getX() + contents.width() + scale - 1) / scale - pixX);
+            pixH = Math.max(1, (s.getY() + contents.height() + scale - 1) / scale - pixY);
             transparentPixels = scanTransparency(contents, pixW, pixH);
             hasTransparency = transparentPixels != null && !transparentPixels.isEmpty();
         }
@@ -213,7 +217,8 @@ public class BlockTextureManager {
             BitSet transparent = null;
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
-                    if (((img.getPixelRGBA(x, y) >> 24) & 0xFF) < 255) {
+                    if (((img.getPixelRGBA(Math.min(img.getWidth() - 1, x * img.getWidth() / w),
+                            Math.min(img.getHeight() - 1, y * img.getHeight() / h)) >> 24) & 0xFF) < 255) {
                         if (transparent == null) transparent = new BitSet(w * h);
                         transparent.set(y * w + x);
                     }
@@ -267,7 +272,13 @@ public class BlockTextureManager {
             buildWaterMaterials(api);
             Map<String, AnimatedSpriteLabPBR> labPBRMap =
                 buildAnimatedSpriteLabPBRMap(labPBRVariants, spriteAtlas);
-            AtlasAnimationForwarder.init(labPBRMap, Set.copyOf(spriteById.keySet()));
+            if (atlasScale == 1) {
+                AtlasAnimationForwarder.init(labPBRMap, Set.copyOf(spriteById.keySet()));
+            } else {
+                // SpriteContents animated uploads target full-resolution coordinates.
+                // Do not patch the smaller Remix atlas with out-of-bounds coordinates.
+                LOGGER.warn("Animated atlas forwarding temporarily disabled for downscaled atlas ({}x)", atlasScale);
+            }
 
             initialized = true;
             terrainEmissionMaterialsInitialized = true;
@@ -278,15 +289,27 @@ public class BlockTextureManager {
     }
 
     private void captureAtlas(RemixAPI api, TextureAtlas atlas) {
-        atlasW = atlasWidth(atlas);
-        atlasH = atlasHeight(atlas);
-        if (atlasW == 0 || atlasH == 0) {
-            LOGGER.warn("Atlas dimensions are zero");
-            return;
+        int sourceW = atlasWidth(atlas);
+        int sourceH = atlasHeight(atlas);
+        if (sourceW <= 0 || sourceH <= 0) {
+            throw new IllegalStateException("Block atlas has invalid dimensions: " + sourceW + "x" + sourceH);
         }
-        albedoRGBA = stitchAtlasRGBA(atlas);
+        atlasScale = 1;
+        // Use long before multiplying: a 32768x16384 RGBA atlas overflows int
+        // and would crash with NegativeArraySizeException at allocation time.
+        while (((long) ((sourceW + atlasScale - 1) / atlasScale)
+                * ((sourceH + atlasScale - 1) / atlasScale) * 4L) > MAX_CAPTURED_ATLAS_BYTES) {
+            atlasScale <<= 1;
+        }
+        atlasW = (sourceW + atlasScale - 1) / atlasScale;
+        atlasH = (sourceH + atlasScale - 1) / atlasScale;
+        albedoRGBA = stitchAtlasRGBA(atlas, atlasScale);
         atlasAlbedo = upload(api, "block_atlas", albedoRGBA, atlasW, atlasH,
                 TextureFormat.RGBA8_UNORM, TexturePurpose.COLOR);
+        if (atlasScale != 1) {
+            LOGGER.warn("Large block atlas {}x{} downsampled {}x to {}x{} for Remix capture; "
+                    + "the Minecraft resource pack is unchanged", sourceW, sourceH, atlasScale, atlasW, atlasH);
+        }
         LOGGER.info("Atlas {}x{} (stitched from {} sprites)",
                 atlasW, atlasH, ((SpriteAtlasAccessor) atlas).getSprites().size());
     }
@@ -303,7 +326,7 @@ public class BlockTextureManager {
         int pbr = 0, emissiveCount = 0, idx = 0;
 
         for (var e : map.entrySet()) {
-            SpriteEntry se = new SpriteEntry(idx++, e.getKey(), e.getValue());
+            SpriteEntry se = new SpriteEntry(idx++, e.getKey(), e.getValue(), atlasScale);
             byte[] alb = extractRGBA(se.pixX, se.pixY, se.pixW, se.pixH);
             int luminance = lumMap.getOrDefault(e.getKey().toString(), 0);
 
@@ -1023,25 +1046,41 @@ public class BlockTextureManager {
         }
     }
 
-    /** Reads per-sprite NativeImages and stitches into an RGBA byte[] atlas buffer. */
+    /** Reads NativeImages directly, so oversized source atlases never require a 2GB Java array. */
     public static byte[] stitchAtlasRGBA(TextureAtlas atlas) {
+        return stitchAtlasRGBA(atlas, 1);
+    }
+
+    private static byte[] stitchAtlasRGBA(TextureAtlas atlas, int scale) {
         SpriteAtlasAccessor acc = (SpriteAtlasAccessor) atlas;
-        int w = acc.getWidth(), h = acc.getHeight();
-        byte[] buf = new byte[w * h * 4];
+        int w = (acc.getWidth() + scale - 1) / scale;
+        int h = (acc.getHeight() + scale - 1) / scale;
+        long bytes = (long) w * h * 4L;
+        if (bytes <= 0 || bytes > Integer.MAX_VALUE - 8L) {
+            throw new IllegalArgumentException("Block atlas byte size exceeds Java array limits: "
+                    + acc.getWidth() + "x" + acc.getHeight() + " (scale " + scale + ")");
+        }
+        byte[] buf = new byte[(int) bytes];
         for (TextureAtlasSprite sprite : acc.getSprites().values()) {
             NativeImage img = ((SpriteContentsAccessor) sprite.contents()).getImage();
             if (img == null) continue;
             int sx = sprite.getX(), sy = sprite.getY();
             int sw = sprite.contents().width(), sh = sprite.contents().height();
-            for (int y = 0; y < sh; y++)
-                for (int x = 0; x < sw; x++) {
-                    int abgr = img.getPixelRGBA(x, y);
-                    int idx = ((sy + y) * w + (sx + x)) * 4;
+            int left = sx / scale, top = sy / scale;
+            int right = Math.min(w, (sx + sw + scale - 1) / scale);
+            int bottom = Math.min(h, (sy + sh + scale - 1) / scale);
+            for (int y = top; y < bottom; y++) {
+                int srcY = Math.min(sh - 1, Math.max(0, y * scale + scale / 2 - sy));
+                for (int x = left; x < right; x++) {
+                    int srcX = Math.min(sw - 1, Math.max(0, x * scale + scale / 2 - sx));
+                    int abgr = img.getPixelRGBA(srcX, srcY);
+                    int idx = (y * w + x) * 4;
                     buf[idx]     = (byte) (abgr & 0xFF);
                     buf[idx + 1] = (byte) ((abgr >> 8) & 0xFF);
                     buf[idx + 2] = (byte) ((abgr >> 16) & 0xFF);
                     buf[idx + 3] = (byte) ((abgr >> 24) & 0xFF);
                 }
+            }
         }
         return buf;
     }
@@ -1311,6 +1350,6 @@ public class BlockTextureManager {
             waterWhiteTexture = null;
             waterNormalHandle = 0;
         }
-        albedoRGBA = null; initialized = false;
+        albedoRGBA = null; atlasScale = 1; initialized = false;
     }
 }
