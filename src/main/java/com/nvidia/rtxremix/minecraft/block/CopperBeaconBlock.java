@@ -126,7 +126,8 @@ public class CopperBeaconBlock extends SpotLightBlock implements EntityBlock, Si
             return InteractionResult.SUCCESS;
         }
         if (world.getBlockEntity(pos) instanceof CopperBeaconBlockEntity beacon) {
-            player.openMenu(beacon);
+            CopperBeaconScreenData data = beacon.getScreenOpeningData();
+            player.openMenu(beacon, buffer -> CopperBeaconScreenData.PACKET_CODEC.encode(buffer, data));
             return InteractionResult.CONSUME;
         }
         return InteractionResult.PASS;
