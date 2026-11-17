@@ -5,12 +5,12 @@
 package com.nvidia.rtxremix.minecraft.block;
 
 import com.nvidia.rtxremix.minecraft.RtxRemixCommonMod;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
 import com.nvidia.rtxremix.minecraft.light.LightEntry;
 import com.nvidia.rtxremix.minecraft.light.OverridesItemLight;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.core.Direction;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -26,6 +26,8 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.registries.RegisterEvent;
 
 /**
  * Base for aimable light sources, the lamp room of a lighthouse.
@@ -98,23 +100,35 @@ public abstract class SpotLightBlock extends DirectionalBlock implements Overrid
         return beamColor;
     }
 
+    /** The block items {@link #register} created, for the creative tab. */
+    private static final List<BlockItem> ITEMS = new ArrayList<>();
+
     /**
      * Registers every beacon variant. Called from
-     * {@link RtxRemixCommonMod#onInitialize()}, the {@code main} entrypoint, not
-     * the client one, because blocks live in a synced registry. Everything this
+     * {@link RtxRemixCommonMod}'s {@link RegisterEvent} listener, which runs on
+     * both sides, because blocks live in a synced registry. Everything this
      * method touches therefore has to be loadable on a dedicated server.
      */
-    public static void registerAll() {
-        register(CopperBeaconBlock.ID, CopperBeaconBlock.INSTANCE);
-        CopperBeaconBlockEntity.register();
+    public static void registerAll(RegisterEvent event) {
+        register(event, CopperBeaconBlock.ID, () -> CopperBeaconBlock.INSTANCE);
+        CopperBeaconBlockEntity.register(event);
     }
 
-    /** Registers one variant, its item, and the creative tab entry. */
-    private static void register(String path, SpotLightBlock block) {
+    /** Registers one variant and its item; {@link #addToCreativeTabs} lists the item. */
+    private static void register(RegisterEvent event, String path, Supplier<Block> block) {
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(RtxRemixCommonMod.MOD_ID, path);
-        Registry.register(BuiltInRegistries.BLOCK, id, block);
-        BlockItem item = Registry.register(BuiltInRegistries.ITEM, id, new BlockItem(block, new Item.Properties()));
-        ItemGroupEvents.modifyEntriesEvent(FUNCTIONAL_BLOCKS).register(entries -> entries.accept(item));
+        event.register(Registries.BLOCK, id, block);
+        event.register(Registries.ITEM, id, () -> {
+            BlockItem item = new BlockItem(block.get(), new Item.Properties());
+            ITEMS.add(item);
+            return item;
+        });
+    }
+
+    public static void addToCreativeTabs(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey().equals(FUNCTIONAL_BLOCKS)) {
+            ITEMS.forEach(event::accept);
+        }
     }
 
     @Override

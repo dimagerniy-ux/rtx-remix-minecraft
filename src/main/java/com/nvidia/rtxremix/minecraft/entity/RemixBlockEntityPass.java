@@ -101,7 +101,6 @@ public final class RemixBlockEntityPass {
         boolean hadShadows = ((EntityRenderDispatcherAccessor) dispatcher).rtxremix$getRenderShadows();
         dispatcher.setRenderShadow(false);
         provider.beginEntity();
-        provider.setBlockOrigin(be.getBlockPos());
         matrices.pushPose();
         ctx.begin(true);
         List<RemixVertexConsumerProvider.CapturedLayer> layers;
