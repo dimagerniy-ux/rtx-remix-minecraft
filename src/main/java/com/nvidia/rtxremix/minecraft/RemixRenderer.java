@@ -694,8 +694,7 @@ public class RemixRenderer {
             return false;
         }
         entityPass.beginFrame(entitySubmitter);
-        entityPass.captureAndSubmit(entity, dispatcher, tickDelta, entitySubmitter);
-        return true;
+        return entityPass.captureAndSubmit(entity, dispatcher, tickDelta, entitySubmitter);
     }
 
     /**
@@ -729,8 +728,7 @@ public class RemixRenderer {
             return false;
         }
         entitySubmitter.beginFrame();
-        blockEntityPass.capture(be, call, dispatcher, entitySubmitter);
-        return true;
+        return blockEntityPass.capture(be, call, dispatcher, entitySubmitter);
     }
 
     /**
