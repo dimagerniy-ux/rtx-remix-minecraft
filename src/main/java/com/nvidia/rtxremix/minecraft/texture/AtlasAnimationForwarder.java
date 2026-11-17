@@ -13,6 +13,7 @@ import com.nvidia.rtxremix.minecraft.util.DirectBufferPool;
 import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,10 +38,6 @@ import net.minecraft.resources.ResourceLocation;
  * batch API. This amortizes the JNI crossing and, on the dxvk side, lets mip
  * regeneration be scoped to the dirty rect per atlas instead of regenerating
  * the whole atlas once per atlas.
- *
- * <p>On AMD that regeneration writes nothing, so the atlases' lower levels
- * keep the frame {@link CpuMipTextures} wrote at init: animated sprites stay
- * textured and lit at distance but stop moving there.
  */
 public final class AtlasAnimationForwarder {
 

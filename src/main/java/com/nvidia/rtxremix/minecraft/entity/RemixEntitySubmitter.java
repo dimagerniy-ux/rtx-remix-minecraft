@@ -44,6 +44,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,7 +71,6 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import com.nvidia.rtxremix.minecraft.texture.CpuMipTextures;
 
 /**
  * Converts {@link RemixEntityPass.EntityCaptureResult} into RTX Remix API calls.
@@ -2172,7 +2172,16 @@ public class RemixEntitySubmitter {
         return textures;
     }
 
-    private EntityTextureSet tryCreateTextureSet(ResourceLocation textureId) throws Exception {
+    /**
+     * Texture set for the end portal and gateway surfaces, from the tile
+     * {@link EndPortalSurface} bakes. Vanilla draws those surfaces unlit, so the tile
+     * is emission only and the albedo a single black texel, which reflects no diffuse
+     * light. A black dielectric still reflects a few percent specularly, which read as
+     * a grey sheen under the noon sky, so the surface is a black metal, whose specular
+     * colour is its albedo, at full roughness. Returns null while the bake runs, so the
+     * caller retries next frame.
+     */
+    private EntityTextureSet createEndPortalTextureSet(ResourceLocation textureId) {
         var client = Minecraft.getInstance();
         if (client == null) return null;
         byte[] pixels;
@@ -2473,9 +2482,8 @@ public class RemixEntitySubmitter {
         EntityTextureSet textures = textureSets.get(textureId);
         if (textures == null || textures.albedo == null || textures.albedo.isDeleted()) return;
 
-        if (textures.hasPBR || textures.albedo.isFileBacked()) {
+        if (textures.hasPBR) {
             // AO and emissive are derived from albedo; rebuild the complete set.
-            // A file-backed albedo carries CPU mips that a patch would leave stale.
             invalidateMaterialTexture(textureId);
             return;
         }
@@ -2770,8 +2778,6 @@ public class RemixEntitySubmitter {
     }
 
     private RemixTexture uploadPixels(String name, byte[] data, int w, int h, int format, int purpose) {
-        RemixTexture fileBacked = CpuMipTextures.create("entity", name, data, w, h, format, purpose);
-        if (fileBacked != null) return fileBacked;
         ByteBuffer buf = DirectBufferPool.acquire(data.length);
         buf.put(data).flip();
         try {

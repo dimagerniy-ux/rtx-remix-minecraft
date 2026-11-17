@@ -20,6 +20,7 @@ import com.nvidia.rtxremix.TextureFormat;
 import com.nvidia.rtxremix.TexturePurpose;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -215,11 +216,6 @@ public class ParticleAtlasManager {
     public boolean isInitialized()     { return initialized; }
 
     private RemixTexture uploadTexture(String name, byte[] data, int w, int h, int fmt, int purpose) {
-        RemixTexture fileBacked = CpuMipTextures.create("particle", name, data, w, h, fmt, purpose);
-        if (fileBacked != null) {
-            managedTextures.add(fileBacked);
-            return fileBacked;
-        }
         ByteBuffer buf = DirectBufferPool.acquire(data.length);
         buf.put(data).flip();
         try {
