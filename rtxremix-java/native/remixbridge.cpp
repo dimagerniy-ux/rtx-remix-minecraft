@@ -761,15 +761,16 @@ Java_com_nvidia_rtxremix_RemixBridge_overwriteProcessCommandLine(JNIEnv* env, jc
     std::vector<WCHAR> replacement(length);
     env->GetStringRegion(jReplacement, 0, length, (jchar*)replacement.data());
 
-    // GetCommandLineA returns an ANSI conversion made at process start, sized
-    // for the original line. Converting the replacement must fit in it, and is
-    // shorter whenever a blanked character took more than one byte.
+    // GetCommandLineA may be a cached ANSI copy made before a launcher or
+    // another component adjusted the Unicode PEB command line. Its buffer
+    // must never be overrun when the replacement no longer fits.
     char* ansi = GetCommandLineA();
     const size_t originalAnsiLength = strlen(ansi);
     const int ansiLength = WideCharToMultiByte(CP_ACP, 0, replacement.data(), length,
         nullptr, 0, nullptr, nullptr);
-    if (ansiLength <= 0 || (size_t)ansiLength > originalAnsiLength)
+    if (ansiLength <= 0)
         return REMIXAPI_ERROR_CODE_INVALID_ARGUMENTS;
+    const bool ansiReplacementFits = (size_t)ansiLength <= originalAnsiLength;
 
     // GetCommandLineW normally returns the PEB buffer itself. A separate copy
     // of the same line is kept in step.
@@ -781,10 +782,20 @@ Java_com_nvidia_rtxremix_RemixBridge_overwriteProcessCommandLine(JNIEnv* env, jc
     wmemcpy(commandLine.Buffer, replacement.data(), length);
     if (separateWideCopy)
         wmemcpy(wide, replacement.data(), length);
-    WideCharToMultiByte(CP_ACP, 0, replacement.data(), length, ansi, ansiLength, nullptr, nullptr);
-    // Zero through the original terminator, so no byte of a blanked value
-    // survives past the new end of the line.
-    SecureZeroMemory(ansi + ansiLength, originalAnsiLength - ansiLength + 1);
+
+    if (ansiReplacementFits) {
+        WideCharToMultiByte(CP_ACP, 0, replacement.data(), length, ansi, ansiLength, nullptr, nullptr);
+        // Zero through the original terminator, so no byte of a blanked
+        // credential value survives past the new end of the line.
+        SecureZeroMemory(ansi + ansiLength, originalAnsiLength - ansiLength + 1);
+    } else {
+        // The cached ANSI buffer is too small for the Unicode PEB command
+        // line. We cannot safely resize memory owned by Windows. Clear the
+        // stale ANSI copy rather than leave credentials in crash diagnostics
+        // or reject a valid redaction and disable RTX Remix entirely.
+        // Minecraft has already parsed the launcher arguments at this stage.
+        SecureZeroMemory(ansi, originalAnsiLength + 1);
+    }
     return REMIXAPI_ERROR_CODE_SUCCESS;
 }
 
