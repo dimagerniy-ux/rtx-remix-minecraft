@@ -6,14 +6,9 @@ package com.nvidia.rtxremix.minecraft.terrain.capture;
 
 import com.nvidia.rtxremix.RemixAPI;
 import com.nvidia.rtxremix.minecraft.light.BlockLightRuleManager;
-import com.nvidia.rtxremix.minecraft.light.LavaLights;
 import com.nvidia.rtxremix.minecraft.texture.BlockTextureManager;
 import com.nvidia.rtxremix.minecraft.light.LightEntry;
 import com.nvidia.rtxremix.minecraft.profiling.ProfileScope;
-import net.neoforged.neoforge.client.ChunkRenderTypeSet;
-import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import net.neoforged.neoforge.client.textures.FluidSpriteCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
@@ -43,6 +38,12 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
+import com.nvidia.rtxremix.minecraft.light.LavaLights;
+import net.neoforged.neoforge.client.ChunkRenderTypeSet;
+import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import net.neoforged.neoforge.client.textures.FluidSpriteCache;
 
 /**
  * Per-block mesh emission for RTX Remix, designed to be driven from
@@ -146,6 +147,7 @@ public final class BlockQuadEmitter {
      * pickle cluster rotates its pickles around the block.
      */
     private long modelRandomSeed = 42L;
+
 
     // Per-section state set by beginSection / processBlock
     /**
@@ -601,6 +603,7 @@ public final class BlockQuadEmitter {
                     stageBakedQuad(bq, layerName, state, world, lx, ly, lz);
                 }
             }
+
         }
 
         writer.flushBlock(texManager);
@@ -610,6 +613,7 @@ public final class BlockQuadEmitter {
 
     private void emitFluidQuads(BlockAndTintGetter world, FluidState fluidState,
                                  int lx, int ly, int lz) {
+
         fluidPos.set(baseX + lx, baseY + ly, baseZ + lz);
 
         TextureAtlasSprite[] fluidSprites = FluidSpriteCache.getFluidSprites(world, fluidPos, fluidState);
@@ -1050,6 +1054,21 @@ public final class BlockQuadEmitter {
             tintValidMask |= bit;
         }
         return tintCache[colorIndex];
+    }
+
+    /**
+     * A FRAPI quad's vertex color under its block tint, as Indigo's
+     * {@code ColorHelper.multiplyColor} computes it: each channel multiplied,
+     * rounding down. The tint is treated as opaque, as Indigo's
+     * {@code BlockRenderInfo.blockColor} makes it, so the vertex alpha is kept.
+     * A block without a color provider has the tint -1, which is white and
+     * changes nothing.
+     */
+    static int tintFrapiColor(int vertexColor, int tint) {
+        int red = ((vertexColor >>> 16) & 0xFF) * ((tint >>> 16) & 0xFF) / 0xFF;
+        int green = ((vertexColor >>> 8) & 0xFF) * ((tint >>> 8) & 0xFF) / 0xFF;
+        int blue = (vertexColor & 0xFF) * (tint & 0xFF) / 0xFF;
+        return (vertexColor & 0xFF000000) | (red << 16) | (green << 8) | blue;
     }
 
     /**
