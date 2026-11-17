@@ -5,12 +5,11 @@
 package com.nvidia.rtxremix.minecraft.block;
 
 import com.nvidia.rtxremix.minecraft.RtxRemixCommonMod;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Supplier;
 import com.nvidia.rtxremix.minecraft.light.LightEntry;
 import com.nvidia.rtxremix.minecraft.light.OverridesItemLight;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -26,6 +25,9 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
