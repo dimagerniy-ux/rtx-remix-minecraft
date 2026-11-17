@@ -64,7 +64,6 @@ public final class ServerLightSnapshot {
     @Nullable
     private ColumnLayer columnTop;
     private int columnSize;
-    private int columnDefaultReturnValue;
 
     /** The maps a pass published: the section view, and for sky light the column view. */
     public record Published(Long2ObjectOpenHashMap<DataLayer> sections, @Nullable Long2IntOpenHashMap columns) {
@@ -90,14 +89,12 @@ public final class ServerLightSnapshot {
             columnBase = liveColumns != null ? liveColumns.clone() : null;
             columnTop = null;
             columnSize = columnBase != null ? columnBase.size() : 0;
-            columnDefaultReturnValue = liveColumns != null ? liveColumns.defaultReturnValue() : 0;
             return published();
         }
 
         View previous = new View(base, top, size);
         Layer layer = new Layer(top, dirtySections.size());
-        ColumnView previousColumns = columnBase != null
-                ? new ColumnView(columnBase, columnTop, columnSize, columnDefaultReturnValue) : null;
+        ColumnView previousColumns = columnBase != null ? new ColumnView(columnBase, columnTop, columnSize) : null;
         ColumnLayer columnLayer = columnBase != null ? new ColumnLayer(columnTop) : null;
         int newSize = size;
         int newColumnSize = columnSize;
@@ -138,7 +135,6 @@ public final class ServerLightSnapshot {
         top = layer.depth > MAX_LAYERS ? layer.merged() : layer;
         if (columnLayer != null) {
             columnTop = columnLayer.depth > MAX_LAYERS ? columnLayer.merged() : columnLayer;
-            columnDefaultReturnValue = liveColumns.defaultReturnValue();
         }
         return published();
     }
@@ -146,7 +142,7 @@ public final class ServerLightSnapshot {
     private Published published() {
         return new Published(
                 new View(base, top, size),
-                columnBase != null ? new ColumnView(columnBase, columnTop, columnSize, columnDefaultReturnValue) : null);
+                columnBase != null ? new ColumnView(columnBase, columnTop, columnSize) : null);
     }
 
     /** One pass's deltas over the layer below it. Complete before any view sees it. */
@@ -322,11 +318,9 @@ public final class ServerLightSnapshot {
     }
 
     /**
-     * Read-only column-to-top-section map for sky light.
-     * {@code SkyLightSectionStorage.SkyDataLayerStorageMap} sets the default return value on
-     * construction to the same minimum section the engine's map uses, so that call is accepted.
-     * Each view keeps the minimum from its own publication: loading a lower section can change
-     * it while the base and earlier views still use the old one.
+     * Read-only column-to-top-section map for sky light. {@code SkyLightStorage.Data} sets the
+     * default return value on construction to the same minimum section the engine's map uses,
+     * so that call is accepted; absent columns answer with the base's default.
      */
     static final class ColumnView extends Long2IntOpenHashMap {
         private final Long2IntOpenHashMap base;
@@ -334,25 +328,25 @@ public final class ServerLightSnapshot {
         private final ColumnLayer top;
         private final int size;
 
-        ColumnView(Long2IntOpenHashMap base, @Nullable ColumnLayer top, int size, int defaultReturnValue) {
+        ColumnView(Long2IntOpenHashMap base, @Nullable ColumnLayer top, int size) {
             super(0);
             this.base = base;
             this.top = top;
             this.size = size;
-            super.defaultReturnValue(defaultReturnValue);
+            super.defaultReturnValue(base.defaultReturnValue());
         }
 
         @Override
         public int get(long column) {
             for (ColumnLayer layer = top; layer != null; layer = layer.parent) {
                 if (!layer.removed.isEmpty() && layer.removed.contains(column)) {
-                    return defaultReturnValue();
+                    return base.defaultReturnValue();
                 }
                 if (layer.changed.containsKey(column)) {
                     return layer.changed.get(column);
                 }
             }
-            return base.getOrDefault(column, defaultReturnValue());
+            return base.get(column);
         }
 
         @Override
@@ -370,7 +364,7 @@ public final class ServerLightSnapshot {
 
         @Override
         public void defaultReturnValue(int value) {
-            if (value != defaultReturnValue()) {
+            if (value != base.defaultReturnValue()) {
                 throw readOnly();
             }
         }

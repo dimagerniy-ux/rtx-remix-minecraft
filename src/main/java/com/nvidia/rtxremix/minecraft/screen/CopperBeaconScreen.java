@@ -14,7 +14,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Checkbox;
@@ -268,11 +270,12 @@ public final class CopperBeaconScreen extends AbstractContainerScreen<CopperBeac
     }
 
     private void flushPending() {
-        if (!ClientPlayNetworking.canSend(CopperBeaconUpdatePayload.ID)) {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection == null || !connection.hasChannel(CopperBeaconUpdatePayload.ID)) {
             pending.clear();
             return;
         }
-        pending.forEach((field, value) -> ClientPlayNetworking.send(
+        pending.forEach((field, value) -> PacketDistributor.sendToServer(
                 new CopperBeaconUpdatePayload(menu.containerId, field, value)));
         pending.clear();
     }
