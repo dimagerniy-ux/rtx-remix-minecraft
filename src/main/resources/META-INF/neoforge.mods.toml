@@ -1,0 +1,37 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "Apache-2.0"
+issueTrackerURL = "https://github.com/dimagerniy-ux/rtx-remix-minecraft/issues"
+
+[[mods]]
+modId = "rtx_remix_renderer"
+version = "${version}"
+displayName = "RTX Remix Renderer (NeoForge)"
+displayURL = "https://github.com/dimagerniy-ux/rtx-remix-minecraft"
+authors = "Community NeoForge port"
+credits = "Original RTX Remix for Minecraft by NVIDIA GameWorks"
+description = '''
+Unofficial NeoForge port of RTX Remix for Minecraft Java Edition 1.21.1.
+This port is intended to use the NVIDIA RTX Remix runtime on supported GeForce RTX hardware.
+Not affiliated with or endorsed by NVIDIA. NOT AN OFFICIAL MINECRAFT PRODUCT.
+'''
+
+[[mixins]]
+config = "rtx-remix-renderer.mixins.json"
+
+[[accessTransformers]]
+file = "META-INF/accesstransformer.cfg"
+
+[[dependencies.rtx_remix_renderer]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.265,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.rtx_remix_renderer]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1]"
+ordering = "NONE"
+side = "BOTH"
