@@ -61,6 +61,9 @@ public final class SodiumTerrainCapture {
     private int lastCenterX = Integer.MIN_VALUE;
     private int lastCenterZ = Integer.MIN_VALUE;
     private final ArrayDeque<SectionPos> pending = new ArrayDeque<>();
+    /** Client block updates must not wait for the periodic whole-section rescan. */
+    private final ArrayDeque<SectionPos> dirty = new ArrayDeque<>();
+    private final Set<Long> dirtyKeys = new HashSet<>();
     private final Map<Long, Long> capturedAtFrame = new HashMap<>();
     private final BlockPos.MutableBlockPos blockPos = new BlockPos.MutableBlockPos();
     private long completedCaptures;
@@ -84,17 +87,23 @@ public final class SodiumTerrainCapture {
 
         long deadline = System.nanoTime() + BUDGET_NS;
         int attempts = 0;
-        while (attempts++ < MAX_SECTIONS_PER_FRAME && !pending.isEmpty()) {
+        while (attempts++ < MAX_SECTIONS_PER_FRAME && (!dirty.isEmpty() || !pending.isEmpty())) {
             if (attempts > 1 && System.nanoTime() >= deadline) break;
-            SectionPos section = pending.removeFirst();
+            boolean urgent = !dirty.isEmpty();
+            SectionPos section = urgent ? dirty.removeFirst() : pending.removeFirst();
+            long sectionKey = section.asLong();
+            if (urgent) dirtyKeys.remove(sectionKey);
+            Long lastCapture = capturedAtFrame.get(sectionKey);
+            if (lastCapture != null && frame - lastCapture < RESCAN_AFTER_FRAMES) continue;
             LevelChunk chunk = currentWorld.getChunkSource().getChunk(section.getX(), section.getZ(), false);
             if (chunk == null) continue;
             int localSection = section.getY() - currentWorld.getMinSection();
             if (localSection < 0 || localSection >= chunk.getSections().length) continue;
             LevelChunkSection chunkSection = chunk.getSections()[localSection];
-            if (chunkSection == null || chunkSection.hasOnlyAir()) continue;
+            if (chunkSection == null || (chunkSection.hasOnlyAir() && !urgent)) continue;
+            // An urgent all-air capture is necessary to retire geometry after the last block is broken.
             if (captureSection(section, currentWorld, textures)) {
-                capturedAtFrame.put(section.asLong(), frame);
+                capturedAtFrame.put(sectionKey, frame);
                 completedCaptures++;
             }
         }
@@ -177,7 +186,22 @@ public final class SodiumTerrainCapture {
         }
     }
 
+    /** Called from LevelRenderer.setSectionDirty when a block/section changes. */
+    public void invalidateSection(int cx, int sy, int cz) {
+        if (world == null) return;
+        long key = SectionPos.asLong(cx, sy, cz);
+        capturedAtFrame.remove(key);
+        if (dirtyKeys.add(key)) {
+            dirty.addLast(SectionPos.of(cx, sy, cz));
+        }
+    }
+
     public void forgetColumn(int cx, int cz) {
+        dirty.removeIf(section -> section.getX() == cx && section.getZ() == cz);
+        dirtyKeys.removeIf(key -> {
+            SectionPos section = SectionPos.of(key);
+            return section.getX() == cx && section.getZ() == cz;
+        });
         capturedAtFrame.keySet().removeIf(key -> {
             SectionPos section = SectionPos.of(key);
             return section.getX() == cx && section.getZ() == cz;
@@ -192,6 +216,8 @@ public final class SodiumTerrainCapture {
         lastCenterX = Integer.MIN_VALUE;
         lastCenterZ = Integer.MIN_VALUE;
         pending.clear();
+        dirty.clear();
+        dirtyKeys.clear();
         capturedAtFrame.clear();
         completedCaptures = 0;
         lastProgressLogFrame = 0;
