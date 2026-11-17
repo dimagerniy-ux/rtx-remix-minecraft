@@ -223,7 +223,7 @@ public abstract class ChunkRenderingDataPreparerMixin {
      * A full walk is about to construct its state: hand it the other buffer set. Runs for
      * vanilla's walk too, since the reused set, list and map are what its state is made of.
      */
-    @Inject(method = "method_52820", at = @At("HEAD"))
+    @Inject(method = "lambda$scheduleFullUpdate$2", at = @At("HEAD"))
     private void rtxremix$beginFrustumIndex(
             Camera camera,
             Vec3 cameraPos,
@@ -242,7 +242,7 @@ public abstract class ChunkRenderingDataPreparerMixin {
     // The second AtomicReference write publishes field_45624; the writes on
     // either side install and clear the in-progress event sink.
     @Redirect(
-            method = "method_52820",
+            method = "lambda$scheduleFullUpdate$2",
             at = @At(
                     value = "INVOKE",
                     target = "Ljava/util/concurrent/atomic/AtomicReference;set(Ljava/lang/Object;)V",

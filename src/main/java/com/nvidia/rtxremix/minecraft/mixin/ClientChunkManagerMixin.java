@@ -61,10 +61,10 @@ public abstract class ClientChunkManagerMixin {
 
     /**
      * A same-position reload replaces the WorldChunk's contents in place and fires no
-     * CHUNK_UNLOAD, so the neighbour slots whose region snapshot holds the old content must
+     * unload event, so the neighbour slots whose region snapshot holds the old content must
      * forget the column before the reload's re-flags arrive, or they would be dropped as
-     * already captured. Slot reuse by another position and unload() are covered by the Fabric
-     * CHUNK_UNLOAD event.
+     * already captured. Slot reuse by another position and unload() are covered by the
+     * client's ChunkEvent.Unload.
      */
     @Inject(method = "replaceWithPacketData", at = @At("HEAD"))
     private void rtxremix$invalidateNeighboursOnInPlaceReload(
