@@ -7,13 +7,11 @@ package com.nvidia.rtxremix.minecraft.settings;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.regex.Pattern;
 import net.minecraft.client.OptionInstance;
 import net.minecraft.network.chat.contents.TranslatableContents;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -151,7 +149,7 @@ class RtxOptionFactoryTest {
             callbacksField.setAccessible(true);
             return (OptionInstance.SliderableValueSet<?>) callbacksField.get(option);
         } catch (ReflectiveOperationException e) {
-            throw new AssertionError("Could not inspect SimpleOption callbacks", e);
+            throw new AssertionError("Could not inspect OptionInstance values", e);
         }
     }
 

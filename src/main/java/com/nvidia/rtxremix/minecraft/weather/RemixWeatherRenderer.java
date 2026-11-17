@@ -10,7 +10,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.nvidia.rtxremix.minecraft.RtxRemixCommonMod;
-import net.fabricmc.fabric.api.client.rendering.v1.CoreShaderRegistrationCallback;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -26,11 +25,14 @@ import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
-
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 
 /**
  * Draws rain and snow with GL directly onto the composited Remix colour image,
@@ -60,12 +62,16 @@ public final class RemixWeatherRenderer {
     private int lastDrawCount;
     private int lastQuadCount;
 
-    public static void registerShaders() {
-        CoreShaderRegistrationCallback.EVENT.register(context ->
-                context.register(
-                        RAIN_SHADER,
-                        DefaultVertexFormat.PARTICLE,
-                        shader -> rainShader = shader));
+    public static void registerShaders(IEventBus modEventBus) {
+        modEventBus.addListener(RegisterShadersEvent.class, event -> {
+            try {
+                event.registerShader(
+                        new ShaderInstance(event.getResourceProvider(), RAIN_SHADER, DefaultVertexFormat.PARTICLE),
+                        shader -> rainShader = shader);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to load " + RAIN_SHADER, e);
+            }
+        });
     }
 
     public void beginCaptureFrame(LightTexture lightmapTextureManager) {

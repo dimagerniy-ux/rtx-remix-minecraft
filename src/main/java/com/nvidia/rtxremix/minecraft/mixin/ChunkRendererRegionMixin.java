@@ -11,11 +11,12 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.client.renderer.chunk.RenderChunk;
 import net.minecraft.client.renderer.chunk.RenderChunkRegion;
 import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import it.unimi.dsi.fastutil.longs.Long2ObjectFunction;
 
 /**
  * A render region holds one reference on each of its nine chunk snapshots from construction
@@ -31,8 +32,11 @@ public abstract class ChunkRendererRegionMixin implements RegionSnapshotRelease 
 
     private final AtomicBoolean rtxremix$released = new AtomicBoolean();
 
-    @Inject(method = "<init>", at = @At("RETURN"))
-    private void rtxremix$retainSnapshots(Level world, int chunkX, int chunkZ, RenderChunk[] renderedChunks, CallbackInfo ci) {
+    // NeoForge's four-argument constructor delegates here, so this one sees every region once.
+    @Inject(method = "<init>(Lnet/minecraft/world/level/Level;II[Lnet/minecraft/client/renderer/chunk/RenderChunk;Lit/unimi/dsi/fastutil/longs/Long2ObjectFunction;)V",
+            at = @At("RETURN"))
+    private void rtxremix$retainSnapshots(Level world, int chunkX, int chunkZ, RenderChunk[] renderedChunks,
+                                          Long2ObjectFunction<ModelData> modelDataSnapshot, CallbackInfo ci) {
         for (RenderChunk snapshot : chunks) {
             ((RegionSnapshotRelease) snapshot).rtxremix$retain();
         }

@@ -9,7 +9,6 @@ import com.nvidia.rtxremix.InstanceCategoryBit;
 import com.nvidia.rtxremix.minecraft.mixin.EntityRenderDispatcherAccessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.util.IdentityHashMap;
 import java.util.List;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -101,7 +100,6 @@ public final class RemixBlockEntityPass {
         boolean hadShadows = ((EntityRenderDispatcherAccessor) dispatcher).rtxremix$getRenderShadows();
         dispatcher.setRenderShadow(false);
         provider.beginEntity();
-        provider.setBlockOrigin(be.getBlockPos());
         matrices.pushPose();
         ctx.begin(true);
         List<RemixVertexConsumerProvider.CapturedLayer> layers;

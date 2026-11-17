@@ -4,8 +4,9 @@
  */
 package com.nvidia.rtxremix.minecraft;
 
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +89,7 @@ public final class NativeExtractor {
     /**
      * Extracts the bundled native/runtime payload if the version marker is
      * absent or stale, or the runtime is missing. Safe to call early in mod init:
-     * uses only Fabric Loader APIs.
+     * uses only NeoForge loader APIs.
      *
      * <p>Non-SDK directories other than {@code textures/}, such as the
      * {@code rtx-remix/} gameplay conf payload, are author-owned: players and
@@ -131,17 +132,17 @@ public final class NativeExtractor {
      */
     public static boolean extractIfNeeded() {
         try {
-            ModContainer container = FabricLoader.getInstance()
-                    .getModContainer(RtxRemixCommonMod.MOD_ID)
+            ModContainer container = ModList.get()
+                    .getModContainerById(RtxRemixCommonMod.LOADER_MOD_ID)
                     .orElse(null);
             if (container == null) {
                 LOGGER.warn("Cannot find own mod container, skipping native extraction");
                 return true;
             }
             extractIfNeeded(
-                    container.getRootPaths().get(0).resolve(JAR_NATIVE_ROOT),
-                    FabricLoader.getInstance().getGameDir(),
-                    container.getMetadata().getVersion().getFriendlyString(),
+                    container.getModInfo().getOwningFile().getFile().findResource(JAR_NATIVE_ROOT),
+                    FMLPaths.GAMEDIR.get(),
+                    container.getModInfo().getVersion().toString(),
                     detectPlatformSdkDir(System.getProperty("os.arch")),
                     ShippedPayloadHistory.loadBundled(),
                     RETIRED_SDK_CLEANUP);

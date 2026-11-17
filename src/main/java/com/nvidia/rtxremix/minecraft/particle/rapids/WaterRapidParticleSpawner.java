@@ -5,8 +5,6 @@
 package com.nvidia.rtxremix.minecraft.particle.rapids;
 
 import com.nvidia.rtxremix.minecraft.RtxRemixMod;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandler;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
@@ -18,6 +16,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.material.FlowingFluid;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
 
 public final class WaterRapidParticleSpawner {
     private static final int[] CARDINAL_X = {1, -1, 0, 0};
@@ -250,8 +249,7 @@ public final class WaterRapidParticleSpawner {
     }
 
     private static float[] foamColor(ClientLevel world, BlockPos pos, FluidState fluidState) {
-        FluidRenderHandler handler = FluidRenderHandlerRegistry.INSTANCE.get(fluidState.getType());
-        int color = handler != null ? handler.getFluidColor(world, pos, fluidState) : 0x3F76E4;
+        int color = IClientFluidTypeExtensions.of(fluidState).getTintColor(fluidState, world, pos);
         float r = ((color >> 16) & 0xFF) / 255.0f;
         float g = ((color >> 8) & 0xFF) / 255.0f;
         float b = (color & 0xFF) / 255.0f;

@@ -29,6 +29,11 @@ SPDX_LICENSE_LINE = "SPDX-License-Identifier: Apache-2.0"
 
 # Release compliance review requires this exact entity, trailing period included.
 NVIDIA_ENTITY = "NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+# New community-authored source must not falsely claim NVIDIA copyright.
+COMMUNITY_PORT_ENTITY = "Community NeoForge port contributors"
+COMMUNITY_PORT_SOURCES = frozenset({
+    "src/main/java/com/nvidia/rtxremix/minecraft/terrain/SodiumTerrainCapture.java",
+})
 
 # The copyright line that must sit above the Apache body in the root LICENSE.
 LICENSE_FIRST_LINE = f"Copyright (c) 2024-2026 {NVIDIA_ENTITY}"
@@ -124,7 +129,7 @@ def tracked_files() -> list[str]:
 
 
 def headered_sources() -> list[str]:
-    """Public tracked sources expected to carry an NVIDIA SPDX header."""
+    """Public tracked sources expected to carry a correctly attributed SPDX header."""
     selected = []
     for name in tracked_files():
         if name.startswith(EXCLUDED_PREFIXES) or name in EXCLUDED_PATHS:
@@ -149,15 +154,21 @@ class SourceHeaderTests(unittest.TestCase):
         missing = [name for name in sources if SPDX_LICENSE_LINE not in read_text(REPO_ROOT / name)]
         self.assertEqual([], missing, "sources without an SPDX header (new files usually arrive via rebase or merge)")
 
-    def test_headers_use_the_required_nvidia_entity(self):
-        # Release compliance tooling matches on the exact entity string, trailing
-        # period included, so "NVIDIA CORPORATION" alone or a missing period fails.
+    def test_headers_use_the_correct_source_author(self):
+        # Preserve NVIDIA's exact legal entity for original source files.
+        # Independently authored NeoForge integration carries its own attribution
+        # instead of claiming NVIDIA wrote code it did not contribute.
         offenders = []
         for name in headered_sources():
             text = read_text(REPO_ROOT / name)
-            if "SPDX-FileCopyrightText" in text and NVIDIA_ENTITY not in text:
+            if "SPDX-FileCopyrightText" not in text:
+                continue
+            if name in COMMUNITY_PORT_SOURCES:
+                if COMMUNITY_PORT_ENTITY not in text or NVIDIA_ENTITY in text:
+                    offenders.append(name)
+            elif NVIDIA_ENTITY not in text:
                 offenders.append(name)
-        self.assertEqual([], offenders, f"SPDX headers must name '{NVIDIA_ENTITY}'")
+        self.assertEqual([], offenders, "SPDX copyright attribution must match the source's authors")
 
 
 class ScriptEncodingTests(unittest.TestCase):
@@ -198,27 +209,22 @@ class ScriptEncodingTests(unittest.TestCase):
         )
 
 
-class AccessWidenerHeaderTests(unittest.TestCase):
-    """The access widener is the one headered file with a format constraint.
+class AccessTransformerHeaderTests(unittest.TestCase):
+    """NeoForge uses a plain-text access transformer instead of Fabric's widener."""
 
-    Fabric Loom parses the first line as the format header and rejects anything
-    above it with ClassTweakerFormatException, so the SPDX block has to sit
-    below it. That is easy to "fix" into a broken build during a header sweep.
-    """
+    PATH = Path("src/main/resources/META-INF/accesstransformer.cfg")
 
-    PATH = Path("src/main/resources/rtx-remix-renderer.accesswidener")
-
-    def test_format_header_is_still_the_first_line(self):
-        lines = read_text(REPO_ROOT / self.PATH).splitlines()
-        self.assertTrue(
-            lines[0].startswith("accessWidener "),
-            "the accessWidener format header must remain line 1; Loom rejects anything above it",
-        )
-
-    def test_spdx_header_is_present_below_the_format_header(self):
+    def test_transformer_keeps_its_spdx_header(self):
         text = read_text(REPO_ROOT / self.PATH)
+        self.assertTrue(text.startswith("# SPDX-FileCopyrightText:"))
         self.assertIn(SPDX_LICENSE_LINE, text)
-        self.assertLess(text.index("accessWidener "), text.index("SPDX-License-Identifier"))
+
+    def test_transformer_uses_neoforge_access_directives(self):
+        lines = read_text(REPO_ROOT / self.PATH).splitlines()
+        entries = [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+        self.assertTrue(entries, "access transformer must contain entries")
+        self.assertTrue(all(line.startswith(("public ", "public-f ")) for line in entries))
+        self.assertFalse((REPO_ROOT / "src/main/resources/rtx-remix-renderer.accesswidener").exists())
 
 
 class ContributionDocumentTests(unittest.TestCase):

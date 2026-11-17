@@ -8,14 +8,12 @@ import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import org.junit.jupiter.api.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.chunk.DataLayer;
 import net.minecraft.world.level.lighting.SkyLightSectionStorage.SkyDataLayerStorageMap;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -203,7 +201,7 @@ class ServerLightSnapshotTest {
         assertThrows(UnsupportedOperationException.class, columns::keySet);
     }
 
-    /** SkyLightSectionStorage's rule: a column maps to one above its highest present section, else absent. */
+    /** SkyLightStorage's rule: a column maps to one above its highest present section, else absent. */
     private static void updateColumn(Long2ObjectOpenHashMap<DataLayer> live, Long2IntOpenHashMap columns, int x, int z) {
         for (int y = HEIGHT - 1; y >= 0; y--) {
             if (live.containsKey(SectionPos.asLong(x, y, z))) {

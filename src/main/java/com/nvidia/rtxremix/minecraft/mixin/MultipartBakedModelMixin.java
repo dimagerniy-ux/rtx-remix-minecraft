@@ -11,7 +11,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
@@ -25,6 +24,10 @@ import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.LegacyRandomSource;
+import net.minecraft.client.renderer.RenderType;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import net.neoforged.neoforge.client.model.data.MultipartModelData;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Selects a multipart model's parts without the per-call garbage vanilla makes. Fences,
@@ -54,11 +57,17 @@ public abstract class MultipartBakedModelMixin {
     private static final ThreadLocal<LegacyRandomSource> rtxremix$partRandom =
             ThreadLocal.withInitial(() -> new LegacyRandomSource(0L));
 
-    @Inject(method = "getQuads", at = @At("HEAD"), cancellable = true)
+    // NeoForge implements only its ModelData overload; vanilla's three-argument
+    // getQuads, which the Remix capture calls, delegates to it with no data and no
+    // render type.
+    @Inject(method = "getQuads(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;Lnet/neoforged/neoforge/client/model/data/ModelData;Lnet/minecraft/client/renderer/RenderType;)Ljava/util/List;",
+            at = @At("HEAD"), cancellable = true)
     private void rtxremix$getQuads(
             BlockState state,
             Direction face,
             RandomSource random,
+            ModelData modelData,
+            @Nullable RenderType renderType,
             CallbackInfoReturnable<List<BakedQuad>> cir) {
         if (state == null) {
             cir.setReturnValue(Collections.emptyList());
@@ -79,8 +88,14 @@ public abstract class MultipartBakedModelMixin {
         List<BakedQuad> result = null;
         boolean owned = false;
         for (int i = selected.nextSetBit(0); i >= 0; i = selected.nextSetBit(i + 1)) {
+            BakedModel part = selectors.get(i).getRight();
+            // NeoForge's own filter: a part contributes only to the layers it renders in.
+            if (renderType != null && !part.getRenderTypes(state, random, modelData).contains(renderType)) {
+                continue;
+            }
             partRandom.setSeed(seed);
-            List<BakedQuad> quads = selectors.get(i).getRight().getQuads(state, face, partRandom);
+            List<BakedQuad> quads = part.getQuads(
+                    state, face, partRandom, MultipartModelData.resolve(modelData, part), renderType);
             if (result == null) {
                 result = quads;
             } else {

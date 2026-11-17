@@ -11,6 +11,7 @@ import com.nvidia.rtxremix.minecraft.terrain.capture.SectionMeshData;
 import com.nvidia.rtxremix.minecraft.terrain.capture.SectionBlockData;
 import com.nvidia.rtxremix.minecraft.terrain.capture.DirectQuadWriter;
 import com.nvidia.rtxremix.minecraft.terrain.capture.BlockDataQueue;
+import net.neoforged.fml.ModList;
 import com.nvidia.rtxremix.minecraft.profiling.ProfileScope;
 import com.nvidia.rtxremix.minecraft.profiling.PerformanceTimer;
 import com.nvidia.rtxremix.minecraft.light.LightPower;
@@ -89,6 +90,8 @@ public class ChunkManager {
 
     private final RemixRenderer renderer;
     private final TerrainState terrain;
+    /** Independent section capture when Sodium bypasses vanilla SectionCompiler. */
+    private final SodiumTerrainCapture sodiumCapture = new SodiumTerrainCapture();
     private final BlockMeshBuilder meshBuilder;
     private final LongObjectMap<ColumnRenderState> renderColumns = new LongObjectMap<>();
     private final TerrainNativeCallStats nativeCallStats = new TerrainNativeCallStats();
@@ -596,6 +599,7 @@ public class ChunkManager {
     }
 
     public void onChunkUnloaded(ChunkPos p) {
+        sodiumCapture.forgetColumn(p.x, p.z);
         BlockDataQueue.markChunkUnloaded(p.x, p.z);
         chunkUnloadEvents.add(packChunkKey(p.x, p.z));
     }
@@ -687,6 +691,12 @@ public class ChunkManager {
                 drainColumnUnloads(maintenanceDeadline);
                 drainSectionRemovals(maintenanceDeadline);
                 drainLightWork(System.nanoTime() + LIGHT_TIME_BUDGET_NS);
+                // Sodium owns section rebuilds, so the vanilla compiler mixin
+                // never receives section geometry. Sample loaded sections using
+                // the same BlockQuadEmitter and queue consumed below.
+                if (ModList.get().isLoaded("sodium")) {
+                    sodiumCapture.update(world, cam, tex);
+                }
                 int capturesProcessed = drainBlockData();
                 timer.count(cntCap, capturesProcessed);
                 genScope.captureCount(capturesProcessed);
@@ -1897,6 +1907,7 @@ public class ChunkManager {
         pending.clear();
         pendingCaptureIndex = 0;
         BlockDataQueue.clear();
+        sodiumCapture.clear();
         SectionLeftRenderSetQueue.clear();
         chunkUnloadEvents.clear();
         pendingColumnUnloads.clear();

@@ -12,16 +12,15 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.neoforged.neoforge.common.IOUtilities;
 
 class ZonePersistentStateTest {
 
@@ -160,6 +159,8 @@ class ZonePersistentStateTest {
 
         ensureGameVersionForPersistentStateSave();
         state.save(file.toFile(), null);
+        // NeoForge writes saved data on its IO worker.
+        IOUtilities.waitUntilIOWorkerComplete();
 
         assertFalse(state.isDirty());
         CompoundTag root = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());

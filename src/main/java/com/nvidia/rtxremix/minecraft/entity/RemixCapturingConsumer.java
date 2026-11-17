@@ -10,7 +10,6 @@ import com.nvidia.rtxremix.HardcodedVertex;
 import com.nvidia.rtxremix.minecraft.texture.BlockTextureManager;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import org.joml.Matrix4f;
-
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;

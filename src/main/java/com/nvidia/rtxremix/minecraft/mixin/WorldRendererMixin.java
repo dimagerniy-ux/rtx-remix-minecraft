@@ -42,7 +42,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayDeque;
@@ -78,6 +77,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.lighting.LevelLightEngine;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import java.util.function.Predicate;
+import net.minecraft.client.particle.ParticleRenderType;
 
 /**
  * Reroutes vanilla's world render into the Remix capture while a Remix world is
@@ -409,7 +411,7 @@ public abstract class WorldRendererMixin
             method = "renderLevel",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/renderer/block/BlockRenderDispatcher;renderBreakingTexture(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/BlockAndTintGetter;Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;)V"
+                    target = "Lnet/minecraft/client/renderer/block/BlockRenderDispatcher;renderBreakingTexture(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/BlockAndTintGetter;Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;Lnet/neoforged/neoforge/client/model/data/ModelData;)V"
             ))
     private void rtxremix$captureBlockDamageInPlace(
             BlockRenderDispatcher blockRenderManager,
@@ -418,15 +420,16 @@ public abstract class WorldRendererMixin
             BlockAndTintGetter world,
             PoseStack matrices,
             VertexConsumer vertexConsumer,
+            ModelData modelData,
             Operation<Void> original) {
         RtxRemixMod mod = RtxRemixMod.getInstance();
         RemixRenderer renderer = mod == null ? null : mod.getRenderer();
         boolean captured = renderer != null
                 && renderer.renderBlockDamageInPlace(pos, rtxremix$blockBreakingStage(pos),
                         (captureMatrices, captureConsumer) -> original.call(
-                                blockRenderManager, state, pos, world, captureMatrices, captureConsumer));
+                                blockRenderManager, state, pos, world, captureMatrices, captureConsumer, modelData));
         if (!captured) {
-            original.call(blockRenderManager, state, pos, world, matrices, vertexConsumer);
+            original.call(blockRenderManager, state, pos, world, matrices, vertexConsumer, modelData);
         }
     }
 
@@ -514,15 +517,19 @@ public abstract class WorldRendererMixin
             method = "renderLevel",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/particle/ParticleEngine;render(Lnet/minecraft/client/renderer/LightTexture;Lnet/minecraft/client/Camera;F)V"
+                    target = "Lnet/minecraft/client/particle/ParticleEngine;render(Lnet/minecraft/client/renderer/LightTexture;Lnet/minecraft/client/Camera;FLnet/minecraft/client/renderer/culling/Frustum;Ljava/util/function/Predicate;)V"
             ))
     private void rtxremix$skipVanillaParticleDraw(
             ParticleEngine particleManager,
             LightTexture lightmapTextureManager,
             Camera camera,
-            float tickDelta) {
+            float tickDelta,
+            Frustum frustum,
+            Predicate<ParticleRenderType> renderTypePredicate) {
+        // NeoForge splits the fabulous path into a solid and a translucent call;
+        // both are vanilla draws Remix replaces.
         if (!RtxRemixMod.isRemixWorldRendering()) {
-            particleManager.render(lightmapTextureManager, camera, tickDelta);
+            particleManager.render(lightmapTextureManager, camera, tickDelta, frustum, renderTypePredicate);
         }
     }
 
@@ -801,7 +808,7 @@ public abstract class WorldRendererMixin
     }
 
     @Override
-    public void rtxremix$closeProfilerPhaseForFabricEvent() {
+    public void rtxremix$closeProfilerPhaseForStageEvent() {
         rtxremix$closeProfilerPhase();
     }
 

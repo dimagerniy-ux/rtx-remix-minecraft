@@ -30,6 +30,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import java.util.List;
+import net.neoforged.neoforge.client.event.AddSectionGeometryEvent;
 
 /**
  * Intercepts chunk section builds to capture block/fluid mesh data for
@@ -51,6 +53,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(SectionCompiler.class)
 public class SectionBuilderMixin {
+
+    // NeoForge's four-argument compile delegates to this one with no additional
+    // section renderers, so hooking it alone sees every build exactly once.
+    private static final String rtxremix$COMPILE =
+            "compile(Lnet/minecraft/core/SectionPos;Lnet/minecraft/client/renderer/chunk/RenderChunkRegion;"
+            + "Lcom/mojang/blaze3d/vertex/VertexSorting;Lnet/minecraft/client/renderer/SectionBufferBuilderPack;"
+            + "Ljava/util/List;)Lnet/minecraft/client/renderer/chunk/SectionCompiler$Results;";
 
     private static final ThreadLocal<ProfileScope> rtxremix$tracyOuter = new ThreadLocal<>();
     private static final ThreadLocal<ProfileScope> rtxremix$tracyBlockLoop = new ThreadLocal<>();
@@ -83,12 +92,13 @@ public class SectionBuilderMixin {
     private BlockRenderDispatcher blockRenderer;
 
     // HEAD: init per-section emission state
-    @Inject(method = "compile", at = @At("HEAD"))
+    @Inject(method = rtxremix$COMPILE, at = @At("HEAD"))
     private void rtxremix$onBuildHead(
             SectionPos sectionPos,
             RenderChunkRegion renderRegion,
             VertexSorting vertexSorter,
             SectionBufferBuilderPack allocatorStorage,
+            List<AddSectionGeometryEvent.AdditionalSectionRenderer> additionalRenderers,
             CallbackInfoReturnable<SectionCompiler.Results> cir) {
 
         // Latched before any early return below, and unconditionally, so a value
@@ -113,8 +123,8 @@ public class SectionBuilderMixin {
         rtxremix$tracyBlockLoop.set(ProfileScope.begin("block loop"));
     }
 
-    // isSolidRender: capture opacity / face masks / lights / quads
-    @Redirect(method = "compile",
+    // isOpaqueFullCube: capture opacity / face masks / lights / quads
+    @Redirect(method = rtxremix$COMPILE,
               at = @At(value = "INVOKE",
                        target = "Lnet/minecraft/world/level/block/state/BlockState;isSolidRender(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z"))
     private boolean rtxremix$captureBlock(BlockState state, BlockGetter world, BlockPos pos) {
@@ -135,7 +145,7 @@ public class SectionBuilderMixin {
     // While capturing, the block's quads were already emitted above, so vanilla's raster
     // path for it (layer buffer, matrix stack, renderBlock) is dead work. Reporting the
     // block invisible makes vanilla skip all of it.
-    @Redirect(method = "compile",
+    @Redirect(method = rtxremix$COMPILE,
               at = @At(value = "INVOKE",
                        target = "Lnet/minecraft/world/level/block/state/BlockState;getRenderShape()Lnet/minecraft/world/level/block/RenderShape;"))
     private RenderShape rtxremix$renderTypeForVanilla(BlockState state) {
@@ -145,7 +155,7 @@ public class SectionBuilderMixin {
     }
 
     // renderFluid: emit fluid quads for Remix, skip GL
-    @Redirect(method = "compile",
+    @Redirect(method = rtxremix$COMPILE,
               at = @At(value = "INVOKE",
                        target = "Lnet/minecraft/client/renderer/block/BlockRenderDispatcher;renderLiquid(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/BlockAndTintGetter;Lcom/mojang/blaze3d/vertex/VertexConsumer;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/material/FluidState;)V"))
     private void rtxremix$redirectFluid(BlockRenderDispatcher brm,
@@ -161,12 +171,13 @@ public class SectionBuilderMixin {
     }
 
     // RETURN: finalise mesh data and enqueue
-    @Inject(method = "compile", at = @At("RETURN"))
+    @Inject(method = rtxremix$COMPILE, at = @At("RETURN"))
     private void rtxremix$onBuildReturn(
             SectionPos sectionPos,
             RenderChunkRegion renderRegion,
             VertexSorting vertexSorter,
             SectionBufferBuilderPack allocatorStorage,
+            List<AddSectionGeometryEvent.AdditionalSectionRenderer> additionalRenderers,
             CallbackInfoReturnable<SectionCompiler.Results> cir) {
 
         try {

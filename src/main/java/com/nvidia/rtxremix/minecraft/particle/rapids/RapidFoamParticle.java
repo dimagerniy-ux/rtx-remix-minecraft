@@ -4,8 +4,6 @@
  */
 package com.nvidia.rtxremix.minecraft.particle.rapids;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleProvider;
@@ -14,7 +12,6 @@ import net.minecraft.client.particle.SpriteSet;
 import net.minecraft.client.particle.TextureSheetParticle;
 import net.minecraft.core.particles.SimpleParticleType;
 
-@Environment(EnvType.CLIENT)
 public class RapidFoamParticle extends TextureSheetParticle {
     private RapidFoamParticle(ClientLevel world, double x, double y, double z,
                               double velocityX, double velocityY, double velocityZ,
@@ -45,7 +42,6 @@ public class RapidFoamParticle extends TextureSheetParticle {
         }
     }
 
-    @Environment(EnvType.CLIENT)
     public static final class Factory implements ParticleProvider<SimpleParticleType> {
         private final SpriteSet spriteProvider;
 

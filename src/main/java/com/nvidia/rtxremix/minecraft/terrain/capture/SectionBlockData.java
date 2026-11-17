@@ -72,7 +72,6 @@ public record SectionBlockData(
         float[] uvs,
         float nx, float ny, float nz,
         int color,
-        int colorIndex,
         ResourceLocation spriteId,
         float spriteU0, float spriteV0,
         float spriteU1, float spriteV1,

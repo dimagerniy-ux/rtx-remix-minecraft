@@ -5,12 +5,11 @@
 package com.nvidia.rtxremix.minecraft.block;
 
 import com.nvidia.rtxremix.minecraft.RtxRemixCommonMod;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 /** One validated control edit from an open Copper Beacon screen. */
 public record CopperBeaconUpdatePayload(int syncId, Field field, float value)
@@ -37,10 +36,13 @@ public record CopperBeaconUpdatePayload(int syncId, Field field, float value)
                 }
             };
 
-    public static void register() {
-        PayloadTypeRegistry.playC2S().register(ID, PACKET_CODEC);
-        ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) ->
-                context.server().execute(() -> {
+    /**
+     * Optional, so a client can still join a server without the mod; the
+     * screen checks {@code hasChannel} before sending.
+     */
+    public static void register(RegisterPayloadHandlersEvent event) {
+        event.registrar("1").optional().playToServer(ID, PACKET_CODEC, (payload, context) ->
+                context.enqueueWork(() -> {
                     if (context.player().containerMenu
                                     instanceof CopperBeaconScreenHandler handler
                             && handler.containerId == payload.syncId

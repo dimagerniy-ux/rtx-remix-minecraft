@@ -40,7 +40,6 @@
         "GlyphAtlasTextureMixin",
         "GrassColorsMixin",
         "HeldItemRendererMixin",
-        "IndigoMeshMixin",
         "ItemRendererMixin",
         "KeyboardMixin",
         "LightStorageMixin",
@@ -79,7 +78,9 @@
         "WeightedBakedModelMixin",
         "WindowMixin",
         "WorldChunkMixin",
-        "WorldRendererMixin"
+        "WorldRendererMixin",
+        "ClientLifecycleMixin",
+        "LevelRenderStagesMixin"
     ],
     "injectors": {
         "defaultRequire": 1

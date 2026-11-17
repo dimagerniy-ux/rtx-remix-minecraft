@@ -5,7 +5,6 @@
 package com.nvidia.rtxremix.minecraft.block;
 
 import com.nvidia.rtxremix.minecraft.RtxRemixCommonMod;
-import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -19,6 +18,9 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.registries.Registries;
+import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
+import net.neoforged.neoforge.registries.RegisterEvent;
 
 /** Server-authoritative inventory and settings channel for one Copper Beacon. */
 public final class CopperBeaconScreenHandler extends AbstractContainerMenu {
@@ -30,9 +32,9 @@ public final class CopperBeaconScreenHandler extends AbstractContainerMenu {
     public static final int PLAYER_INVENTORY_Y = 153;
 
     public static final MenuType<CopperBeaconScreenHandler> TYPE =
-            new ExtendedScreenHandlerType<>(
-                    CopperBeaconScreenHandler::new,
-                    CopperBeaconScreenData.PACKET_CODEC);
+            IMenuTypeExtension.create((syncId, playerInventory, buffer) ->
+                    new CopperBeaconScreenHandler(
+                            syncId, playerInventory, CopperBeaconScreenData.PACKET_CODEC.decode(buffer)));
 
     private static final int DYE_SLOT = 0;
     private static final int PLAYER_START = 1;
@@ -43,11 +45,11 @@ public final class CopperBeaconScreenHandler extends AbstractContainerMenu {
     private final BlockPos pos;
     private final CopperBeaconBlockEntity beacon;
 
-    public static void register() {
-        Registry.register(
-                BuiltInRegistries.MENU,
+    public static void register(RegisterEvent event) {
+        event.register(
+                Registries.MENU,
                 ResourceLocation.fromNamespaceAndPath(RtxRemixCommonMod.MOD_ID, CopperBeaconBlock.ID),
-                TYPE);
+                () -> TYPE);
     }
 
     private CopperBeaconScreenHandler(

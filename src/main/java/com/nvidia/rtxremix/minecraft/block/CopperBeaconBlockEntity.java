@@ -6,7 +6,6 @@ package com.nvidia.rtxremix.minecraft.block;
 
 import com.nvidia.rtxremix.minecraft.RtxRemixCommonMod;
 import com.nvidia.rtxremix.minecraft.light.BeaconBeam;
-import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.Registry;
@@ -28,13 +27,15 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
-
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.MenuProvider;
+import net.neoforged.neoforge.registries.RegisterEvent;
 
 /** Persistent optics, dye inventory, and articulated motion for one Copper Beacon. */
 public final class CopperBeaconBlockEntity extends BlockEntity
-        implements Container, ExtendedScreenHandlerFactory<CopperBeaconScreenData> {
+        implements Container, MenuProvider {
 
     private static final Set<CopperBeaconBlockEntity> LOADED =
             ConcurrentHashMap.newKeySet();
@@ -60,7 +61,7 @@ public final class CopperBeaconBlockEntity extends BlockEntity
 
     public static final BlockEntityType<CopperBeaconBlockEntity> TYPE =
             BlockEntityType.Builder.of(
-                    CopperBeaconBlockEntity::new, CopperBeaconBlock.INSTANCE).build();
+                    CopperBeaconBlockEntity::new, CopperBeaconBlock.INSTANCE).build(null);
 
     private float intensityMultiplier = DEFAULT_INTENSITY_MULTIPLIER;
     private float coneAngle = DEFAULT_CONE_ANGLE;
@@ -99,11 +100,11 @@ public final class CopperBeaconBlockEntity extends BlockEntity
         }
     }
 
-    static void register() {
-        Registry.register(
-                BuiltInRegistries.BLOCK_ENTITY_TYPE,
+    static void register(RegisterEvent event) {
+        event.register(
+                Registries.BLOCK_ENTITY_TYPE,
                 ResourceLocation.fromNamespaceAndPath(RtxRemixCommonMod.MOD_ID, CopperBeaconBlock.ID),
-                TYPE);
+                () -> TYPE);
     }
 
     public float getAzimuth() {
@@ -309,8 +310,8 @@ public final class CopperBeaconBlockEntity extends BlockEntity
         }
     }
 
-    @Override
-    public CopperBeaconScreenData getScreenOpeningData(ServerPlayer player) {
+    /** What the client needs to build its side of the menu {@link #createMenu} opens. */
+    public CopperBeaconScreenData getScreenOpeningData() {
         return new CopperBeaconScreenData(worldPosition);
     }
 

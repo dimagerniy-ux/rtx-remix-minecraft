@@ -10,7 +10,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
 import java.util.Collections;
 import java.util.List;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -20,6 +19,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.random.WeightedEntry;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.client.renderer.RenderType;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Picks the weighted variant without the iterator and the two {@code Optional}s vanilla
@@ -44,11 +46,17 @@ public abstract class WeightedBakedModelMixin {
     @Final
     private List<WeightedEntry.Wrapper<BakedModel>> list;
 
-    @Inject(method = "getQuads", at = @At("HEAD"), cancellable = true)
+    // NeoForge implements only its ModelData overload; vanilla's three-argument
+    // getQuads, which the Remix capture calls, delegates to it with no data and no
+    // render type.
+    @Inject(method = "getQuads(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;Lnet/neoforged/neoforge/client/model/data/ModelData;Lnet/minecraft/client/renderer/RenderType;)Ljava/util/List;",
+            at = @At("HEAD"), cancellable = true)
     private void rtxremix$getQuads(
             BlockState state,
             Direction face,
             RandomSource random,
+            ModelData modelData,
+            @Nullable RenderType renderType,
             CallbackInfoReturnable<List<BakedQuad>> cir) {
         int remaining = Math.abs((int) random.nextLong()) % totalWeight;
         List<WeightedEntry.Wrapper<BakedModel>> variants = list;
@@ -56,7 +64,7 @@ public abstract class WeightedBakedModelMixin {
             WeightedEntry.Wrapper<BakedModel> variant = variants.get(i);
             remaining -= variant.getWeight().asInt();
             if (remaining < 0) {
-                cir.setReturnValue(variant.data().getQuads(state, face, random));
+                cir.setReturnValue(variant.data().getQuads(state, face, random, modelData, renderType));
                 return;
             }
         }
