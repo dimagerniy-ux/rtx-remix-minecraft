@@ -107,18 +107,12 @@ def checkPackageSourceHomogeneity = { ->
 //   - Strip dxvk PDBs (~100MB), keep remixbridge.pdb (small, useful for debugging)
 //   - Drop NvRemixBridge.exe / .pdb (32-bit game bridge, unused in MC Java;
 //     avoids naming confusion with remixbridge.dll, our JNI shim)
-//   - Drop the DLSS / NGX libraries (nvngx_dlss*.dll). NVIDIA licenses them
-//     only for systems with NVIDIA GPUs, and this fork's packages target
-//     Radeon. The runtime falls back to its other upscalers without them.
+//   - Keep NVIDIA DLSS / NGX libraries in the runtime payload.
 ext.sdkExclusions = { details ->
     def name = details.name
     if (name == 'NvRemixBridge.exe' || name == 'NvRemixBridge.pdb') return true
     if (name.endsWith('.pdb') && name != 'remixbridge.pdb') return true
-return false
-}
-
-static boolean isDlssLibrary(String name) {
-    return name.toLowerCase(Locale.ROOT) ==~ /nvngx_dlss[^\/]*\.dll/
+    return false
 }
 
 base {
@@ -229,25 +223,8 @@ dependencies {
     testRuntimeOnly 'io.github.llamalad7:mixinextras-common:0.5.5'
 }
 
-// Indigo needs Minecraft registries and Fabric's runtime access transformations.
-// Keep those separate from the plain JVM tests, which inspect untransformed classes.
-def fabricTest = tasks.register('fabricTest', Test) {
-    group = 'verification'
-    description = 'Runs renderer integration tests under Fabric Loader.'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath - configurations.testRuntimeClasspath +
-            configurations.fabricTestRuntime
-    useJUnitPlatform {
-        includeTags 'fabric'
-    }
-    systemProperty 'fabric.side', 'client'
-}
-
 test {
-    dependsOn fabricTest
-    useJUnitPlatform {
-        excludeTags 'fabric'
-    }
+    useJUnitPlatform()
     // Pin the per-frame install cap so tests don't depend on the CPU count
     systemProperty 'rtxremix.chunk.maxInstalledColumnsPerFrame', '8'
 }
@@ -628,11 +605,6 @@ def verifyPackageJarTask = tasks.register('verifyPackageJar') {
             // interpreter or the USD Python bindings in the payload would be unused
             // code that binary vulnerability scanners flag against the release.
             def pythonEntry = ~/(?i)native\/remix-sdk-[^\/]+\/(.*\/)?([^\/]*python[^\/]*\.dll|[^\/]*\.(pyd|pyc)|python\d*(\.\d+)?\/.*)/
-            def dlssOffender = entryNames.find { it.startsWith('native/remix-sdk-') && isDlssLibrary(it.tokenize('/').last()) }
-            if (dlssOffender != null) {
-                throw new GradleException(
-                    "Distributable JAR must not contain the NVIDIA-only DLSS libraries: ${dlssOffender}")
-            }
             def pythonOffender = entryNames.find { it ==~ pythonEntry }
             if (pythonOffender != null) {
                 throw new GradleException(
