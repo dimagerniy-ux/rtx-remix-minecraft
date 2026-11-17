@@ -142,8 +142,7 @@ sourceSets {
     }
 }
 
-// NeoForge (keep in sync with NEOFORGE_VERSION in packaging/installer.ps1,
-// which is what gets installed at runtime on the user's machine).
+// NeoForge target for this branch; META-INF/neoforge.mods.toml expands the same value.
 def neoForgeVersion = '21.1.265'
 
 neoForge {
@@ -164,7 +163,7 @@ neoForge {
         client {
             client()
             gameDirectory = file('run')
-            // Keep in sync with RECOMMENDED_JVM_ARGS in packaging/installer.ps1.
+            // Recommended JVM arguments for the NeoForge client run configuration.
             // Minecraft Launcher 1.21.1 defaults for supported Windows arches:
             // version metadata supplies HeapDumpPath; the profile supplies G1.
             // NeoForge has no pre-launch hook ahead of Util's worker pool, so the
