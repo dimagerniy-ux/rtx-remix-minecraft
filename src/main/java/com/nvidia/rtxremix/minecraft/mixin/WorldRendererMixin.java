@@ -42,7 +42,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayDeque;
@@ -51,9 +50,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.SortedSet;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import java.util.function.Predicate;
-import net.minecraft.client.particle.ParticleRenderType;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -81,6 +77,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.lighting.LevelLightEngine;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import java.util.function.Predicate;
+import net.minecraft.client.particle.ParticleRenderType;
 
 /**
  * Reroutes vanilla's world render into the Remix capture while a Remix world is
