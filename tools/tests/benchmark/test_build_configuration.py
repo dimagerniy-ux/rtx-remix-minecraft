@@ -18,7 +18,7 @@ class BuildConfigurationTests(unittest.TestCase):
         build = (REPO_ROOT / "build.gradle").read_text(encoding="utf-8")
         wrapper = (REPO_ROOT / "gradle" / "wrapper" / "gradle-wrapper.properties").read_text(encoding="utf-8")
 
-        moddev = re.search(r"id 'net\\.neoforged\\.moddev' version '([^']+)'", build)
+        moddev = re.search(r"id 'net\.neoforged\.moddev' version '([^']+)'", build)
         if moddev is None:
             self.fail("NeoForge ModDevGradle version declaration is missing")
         self.assertNotIn("SNAPSHOT", moddev.group(1).upper())
@@ -400,7 +400,7 @@ class BuildConfigurationTests(unittest.TestCase):
         build = (REPO_ROOT / "build.gradle").read_text(encoding="utf-8")
         self.assertIn("neoForge {", build)
         self.assertIn("version = neoForgeVersion", build)
-        self.assertRegex(build, r"(?s)runs \\{\\s*client \\{\\s*client\\(\\)")
+        self.assertRegex(build, r"(?s)runs \{\s*client \{\s*client\(\)")
         self.assertNotIn("stageFabricApi", build)
 
 

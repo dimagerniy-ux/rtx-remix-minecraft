@@ -38,7 +38,7 @@ class VersionConsistencyTests(unittest.TestCase):
         build = (REPO_ROOT / "build.gradle").read_text(encoding="utf-8")
         self.assertIn("id 'net.neoforged.moddev'", build)
         self.assertIn("version = neoForgeVersion", build)
-        self.assertRegex(neoforge_version(), r"^21\\.1\\.\\d+$")
+        self.assertRegex(neoforge_version(), r"^21\.1\.\d+$")
         self.assertNotIn("fabric-loom", build)
 
     def test_packaging_version_defaults_match_gradle(self):
