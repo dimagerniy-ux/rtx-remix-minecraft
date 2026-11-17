@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 Community NeoForge port contributors
  * SPDX-License-Identifier: Apache-2.0
  */
 package com.nvidia.rtxremix.minecraft.terrain;
@@ -52,7 +52,7 @@ public final class SodiumTerrainCapture {
     private static final long BUDGET_NS = Math.max(250_000L,
             Long.getLong("rtxremix.sodiumCapture.frameBudgetNs", 3_000_000L));
     private static final long RESCAN_AFTER_FRAMES = Math.max(120L,
-            Long.getLong("rtxremix.sodiumCapture.rescanFrames", 600L));
+            Long.getLong("rtxremix.sodiumCapture.rescanFrames", 3600L));
     private static final long REPLAN_AFTER_FRAMES = 30L;
 
     private ClientLevel world;
@@ -77,7 +77,7 @@ public final class SodiumTerrainCapture {
         frame++;
         int cx = ((int) Math.floor(camera.x)) >> 4;
         int cz = ((int) Math.floor(camera.z)) >> 4;
-        if (pending.isEmpty() || cx != lastCenterX || cz != lastCenterZ
+        if (cx != lastCenterX || cz != lastCenterZ
                 || frame - lastPlannedFrame >= REPLAN_AFTER_FRAMES) {
             plan(cx, cz, (int) Math.floor(camera.y) >> 4);
         }
