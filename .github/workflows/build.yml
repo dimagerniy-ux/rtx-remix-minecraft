@@ -25,7 +25,7 @@ jobs:
           java-version: "21"
       # The pinned runtime comes from public Packman; no credentials are used.
       - name: Build and test
-        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" build test verifyPackageJar'
+        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" build test verifyPackageJar --stacktrace'
       - name: Upload NeoForge distributable JAR
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
