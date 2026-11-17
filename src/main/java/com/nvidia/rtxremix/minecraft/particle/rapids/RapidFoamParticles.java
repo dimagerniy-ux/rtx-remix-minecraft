@@ -5,9 +5,11 @@
 package com.nvidia.rtxremix.minecraft.particle.rapids;
 
 import com.nvidia.rtxremix.minecraft.RtxRemixCommonMod;
+import net.minecraft.core.Registry;
 import net.minecraft.core.particles.SimpleParticleType;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
 public final class RapidFoamParticles {
