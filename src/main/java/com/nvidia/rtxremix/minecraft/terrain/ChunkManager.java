@@ -598,6 +598,11 @@ public class ChunkManager {
         return stats;
     }
 
+    /** Invalidate the Sodium fallback mesh immediately when vanilla marks a section dirty. */
+    public void invalidateSodiumSection(int cx, int sy, int cz) {
+        sodiumCapture.invalidateSection(cx, sy, cz);
+    }
+
     public void onChunkUnloaded(ChunkPos p) {
         sodiumCapture.forgetColumn(p.x, p.z);
         BlockDataQueue.markChunkUnloaded(p.x, p.z);
