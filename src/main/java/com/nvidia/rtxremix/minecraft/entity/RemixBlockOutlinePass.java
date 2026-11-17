@@ -15,7 +15,6 @@ import com.nvidia.rtxremix.minecraft.asset.RemixMaterialStore;
 import com.nvidia.rtxremix.minecraft.asset.RemixMesh;
 import com.nvidia.rtxremix.minecraft.asset.RemixMeshStore;
 import com.nvidia.rtxremix.minecraft.asset.RemixMeshSurface;
-import com.nvidia.rtxremix.minecraft.render.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
@@ -23,6 +22,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import java.util.ArrayList;
 import java.util.List;
+import com.nvidia.rtxremix.minecraft.render.WorldRenderContext;
 
 /**
  * Captures vanilla's targeted-block outline and submits it as dynamic Remix

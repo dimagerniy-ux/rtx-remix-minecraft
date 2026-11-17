@@ -5,7 +5,6 @@
 package com.nvidia.rtxremix.minecraft.entity;
 
 import com.nvidia.rtxremix.minecraft.util.DirectBufferPool;
-import com.nvidia.rtxremix.minecraft.texture.CpuMipTextures;
 import com.nvidia.rtxremix.minecraft.texture.ParticleAtlasManager;
 import com.nvidia.rtxremix.minecraft.texture.LabPBRConverter;
 import com.nvidia.rtxremix.minecraft.texture.DynamicTextureCache;
@@ -45,7 +44,6 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,6 +70,7 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
+import com.nvidia.rtxremix.minecraft.texture.CpuMipTextures;
 
 /**
  * Converts {@link RemixEntityPass.EntityCaptureResult} into RTX Remix API calls.
@@ -153,6 +152,8 @@ public class RemixEntitySubmitter {
      */
     private static final byte[] UNTEXTURED_WHITE_PIXEL = {
             (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+    /** Albedo for the end portal surfaces, which are emission only; see createEndPortalTextureSet. */
+    private static final byte[] END_PORTAL_BLACK_PIXEL = {0, 0, 0, (byte) 0xFF};
     private static final int DEFAULT_MAX_MESH_CACHE_ENTRIES = 8192;
     private static final int MAX_MESH_CACHE_ENTRIES = Math.max(128,
             Integer.getInteger("rtxremix.entity.meshCache.maxEntries", DEFAULT_MAX_MESH_CACHE_ENTRIES));
@@ -586,6 +587,7 @@ public class RemixEntitySubmitter {
      */
     private final Set<ResourceLocation> resourceMissing = new HashSet<>();
     private LabPBRConverter.VariantCache labPBRVariants;
+    private final EndPortalSurface endPortalSurfaces = new EndPortalSurface();
 
     // A captured layer with no material is dropped silently, which is
     // indistinguishable from an entity that simply is not there. Most gaps are
@@ -611,6 +613,11 @@ public class RemixEntitySubmitter {
         RemixTexture emissive;
         RemixTexture sssThickness;
         RemixTexture sssAlbedo;
+        float emissiveIntensity = EMISSIVE_INTENSITY;
+        /** Roughness when no LabPBR texture supplies one. */
+        float roughnessConstant = 0.7f;
+        /** Metalness when no LabPBR texture supplies one. */
+        float metallicConstant = 0f;
         boolean hasPBR;
         final List<RemixTexture> ownedTextures = new ArrayList<>();
 
@@ -2127,6 +2134,8 @@ public class RemixEntitySubmitter {
             if (textures == null) {
                 textures = RenderLayerUtils.UNTEXTURED_LAYER_ID.equals(textureId)
                         ? createUntexturedTextureSet()
+                        : EndPortalSurface.isSurfaceTexture(textureId)
+                        ? createEndPortalTextureSet(textureId)
                         : isAtlasTexture(textureId)
                         ? tryCreateAtlasTextureSet(textureId)
                         : tryCreateTextureSet(textureId);
@@ -2160,6 +2169,41 @@ public class RemixEntitySubmitter {
             textures.destroy();
             return null;
         }
+        return textures;
+    }
+
+    private EntityTextureSet tryCreateTextureSet(ResourceLocation textureId) throws Exception {
+        var client = Minecraft.getInstance();
+        if (client == null) return null;
+        byte[] pixels;
+        try {
+            pixels = endPortalSurfaces.poll(textureId, client.getResourceManager());
+        } catch (IllegalStateException e) {
+            failedTextures.add(textureId);
+            throw e;
+        }
+        if (pixels == null) return null;
+
+        EntityTextureSet textures = new EntityTextureSet();
+        String textureName = textureId.toString();
+        try {
+            textures.albedo = uploadAndOwn(textures, "entity_a_" + textureName,
+                    END_PORTAL_BLACK_PIXEL.clone(), 1, 1,
+                    TextureFormat.RGBA8_UNORM, TexturePurpose.COLOR);
+            textures.emissive = uploadAndOwn(textures, "entity_e_" + textureName, pixels,
+                    EndPortalSurface.TILE_SIZE, EndPortalSurface.TILE_SIZE,
+                    TextureFormat.RGBA8_UNORM, TexturePurpose.COLOR);
+        } catch (RuntimeException e) {
+            textures.destroy();
+            throw e;
+        }
+        if (textures.albedo == null || textures.emissive == null) {
+            textures.destroy();
+            return null;
+        }
+        textures.emissiveIntensity = EndPortalSurface.EMISSIVE_INTENSITY;
+        textures.roughnessConstant = 1.0f;
+        textures.metallicConstant = 1.0f;
         return textures;
     }
 
@@ -2593,8 +2637,8 @@ public class RemixEntitySubmitter {
     private RemixMaterial createMaterial(EntityMaterialKey key, EntityTextureSet textures) {
         MaterialInfoOpaqueEXT.Builder opaque = MaterialInfoOpaqueEXT.builder()
                 .albedoConstant(1f, 1f, 1f)
-                .roughnessConstant(textures.roughness != null ? 1f : 0.7f)
-                .metallicConstant(textures.metallic != null ? 1f : 0f);
+                .roughnessConstant(textures.roughness != null ? 1f : textures.roughnessConstant)
+                .metallicConstant(textures.metallic != null ? 1f : textures.metallicConstant);
 
         switch (key.surfaceMode()) {
             case OPAQUE -> { }
@@ -2635,7 +2679,7 @@ public class RemixEntitySubmitter {
                 ? textures.albedo : textures.emissive;
         if (emissive != null) {
             materialBuilder.emissiveTexture(emissive.getHandle())
-                    .emissiveIntensity(EMISSIVE_INTENSITY);
+                    .emissiveIntensity(textures.emissiveIntensity);
         }
 
         MaterialInfo info = materialBuilder.opaqueExt(opaque.build()).build();
@@ -2821,6 +2865,7 @@ public class RemixEntitySubmitter {
         missingMaterialSince.clear();
         warnedMissingMaterials.clear();
         labPBRVariants = null;
+        endPortalSurfaces.clear();
     }
 
     public void clear() {
