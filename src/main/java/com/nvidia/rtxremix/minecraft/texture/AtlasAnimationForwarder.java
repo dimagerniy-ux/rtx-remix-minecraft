@@ -13,7 +13,6 @@ import com.nvidia.rtxremix.minecraft.util.DirectBufferPool;
 import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
