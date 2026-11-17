@@ -204,6 +204,17 @@ public abstract class WorldRendererMixin
      * margin. Expand horizontal invalidation so a ceiling or fluid update
      * cannot leave a neighboring section's occlusion decision stale.
      */
+    @Inject(method = "setSectionDirty(III)V", at = @At("HEAD"))
+    private void rtxremix$invalidateSodiumTerrain(int cx, int sy, int cz, CallbackInfo ci) {
+        if (!RtxRemixMod.isRtxEnabled() || !net.neoforged.fml.ModList.get().isLoaded("sodium")) {
+            return;
+        }
+        RtxRemixMod mod = RtxRemixMod.getInstance();
+        if (mod != null && mod.getRenderer() != null && mod.getRenderer().getChunkManager() != null) {
+            mod.getRenderer().getChunkManager().invalidateSodiumSection(cx, sy, cz);
+        }
+    }
+
     @Inject(method = "setBlocksDirty(IIIIII)V", at = @At("HEAD"), cancellable = true)
     private void rtxremix$expandWaterOcclusionRebuildMargin(
             int minX, int minY, int minZ, int maxX, int maxY, int maxZ, CallbackInfo ci) {

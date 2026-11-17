@@ -93,7 +93,7 @@ public final class RemixBlockEntityPass {
      * Blob shadows are suppressed for the duration, as the entity pass does, so a
      * spawner's display entity casts only the shadow Remix traces.
      */
-    public void capture(BlockEntity be, BlockEntityRenderCall call,
+    public boolean capture(BlockEntity be, BlockEntityRenderCall call,
                         EntityRenderDispatcher dispatcher, RemixEntitySubmitter submitter) {
         long captureStart = System.nanoTime();
         EntityRenderContext ctx = EntityRenderContext.get();
@@ -108,7 +108,7 @@ public final class RemixBlockEntityPass {
             layers = provider.endEntity();
         } catch (Exception e) {
             failures.noteFailure("capturing", "block entity " + typeKey(be), be.getBlockPos(), e);
-            return;
+            return false;
         } finally {
             // All three restore even if the renderer threw mid-traversal: the identity
             // root returns every pooled entry, the player's shadow setting comes back,
@@ -120,10 +120,9 @@ public final class RemixBlockEntityPass {
         }
         frameCaptureNanos += System.nanoTime() - captureStart;
         if (layers.isEmpty()) {
-            // The dispatcher's own render-distance check ends here too. Snapshotting
-            // the zero bones it left would swap the reusable buffer for the shared
-            // empty array and force the next capture to allocate.
-            return;
+            // Let vanilla draw unsupported block-entity renderers rather than
+            // silently removing their geometry from the visible scene.
+            return false;
         }
 
         reusableBoneData = ctx.snapshotBoneTransforms(reusableBoneData);
@@ -136,7 +135,7 @@ public final class RemixBlockEntityPass {
                 ctx.getBoneCount(),
                 typeKey(be),
                 false);
-        submit(be, result, submitter);
+        return submit(be, result, submitter);
     }
 
     /**
@@ -144,7 +143,7 @@ public final class RemixBlockEntityPass {
      * parts before a failure reaches here, so the block entity is absent this frame
      * and rebuilt on the next; the failure must not escape into vanilla's world render.
      */
-    private void submit(BlockEntity be, RemixEntityPass.EntityCaptureResult result,
+    private boolean submit(BlockEntity be, RemixEntityPass.EntityCaptureResult result,
                         RemixEntitySubmitter submitter) {
         long submitStart = System.nanoTime();
         int partsBefore = submitter.getLastDrawCount();
@@ -152,8 +151,10 @@ public final class RemixBlockEntityPass {
         try {
             submitter.submitEntity(result, STATIC_WORLD_CANVASES);
             frameCount++;
+            return true;
         } catch (Exception e) {
             failures.noteFailure("submitting", "block entity " + typeKey(be), be.getBlockPos(), e);
+            return false;
         } finally {
             frameSubmitNanos += System.nanoTime() - submitStart;
             frameParts += submitter.getLastDrawCount() - partsBefore;

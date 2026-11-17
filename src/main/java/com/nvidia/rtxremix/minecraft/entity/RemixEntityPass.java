@@ -271,17 +271,19 @@ public class RemixEntityPass {
                     isFirstPersonLocalPlayer(Minecraft.getInstance(), entity));
         } catch (Exception e) {
             LOGGER.error("Error capturing entity {}: {}", entity.getType(), e.getMessage());
-            return true;
+            // Allow the vanilla path to draw an entity that Remix could not capture.
+            return false;
         } finally {
             dispatcher.setRenderShadow(hadShadows);
         }
         long captured = System.nanoTime();
         frameCaptureNanos += captured - captureStart;
         if (result == null) {
-            return true;
+            // Missing or unsupported model geometry should not make an entity invisible.
+            return false;
         }
         if (!submitToScene(entity, result, submitter)) {
-            return true;
+            return false;
         }
         if (snapshotPose) {
             snapshotPose(entity, result);

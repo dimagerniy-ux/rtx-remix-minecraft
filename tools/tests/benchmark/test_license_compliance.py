@@ -31,9 +31,11 @@ SPDX_LICENSE_LINE = "SPDX-License-Identifier: Apache-2.0"
 NVIDIA_ENTITY = "NVIDIA CORPORATION & AFFILIATES. All rights reserved."
 # New community-authored source must not falsely claim NVIDIA copyright.
 COMMUNITY_PORT_ENTITY = "Community NeoForge port contributors"
-COMMUNITY_PORT_SOURCES = frozenset({
-    "src/main/java/com/nvidia/rtxremix/minecraft/terrain/SodiumTerrainCapture.java",
-})
+COMMUNITY_PORT_SOURCES = frozenset(
+    {
+        "src/main/java/com/nvidia/rtxremix/minecraft/terrain/SodiumTerrainCapture.java",
+    }
+)
 
 # The copyright line that must sit above the Apache body in the root LICENSE.
 LICENSE_FIRST_LINE = f"Copyright (c) 2024-2026 {NVIDIA_ENTITY}"
