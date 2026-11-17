@@ -5,19 +5,18 @@
 package com.nvidia.rtxremix.minecraft.mixin;
 
 import com.nvidia.rtxremix.minecraft.terrain.capture.RegionSnapshotRelease;
-import net.neoforged.neoforge.client.model.data.ModelData;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
 import java.util.concurrent.atomic.AtomicBoolean;
-import it.unimi.dsi.fastutil.longs.Long2ObjectFunction;
 import net.minecraft.client.renderer.chunk.RenderChunk;
 import net.minecraft.client.renderer.chunk.RenderChunkRegion;
 import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import it.unimi.dsi.fastutil.longs.Long2ObjectFunction;
 
 /**
  * A render region holds one reference on each of its nine chunk snapshots from construction
