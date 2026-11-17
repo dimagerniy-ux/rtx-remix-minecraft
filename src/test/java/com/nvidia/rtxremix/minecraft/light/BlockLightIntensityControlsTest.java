@@ -8,7 +8,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
