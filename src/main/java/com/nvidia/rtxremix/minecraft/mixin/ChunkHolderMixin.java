@@ -23,7 +23,7 @@ public abstract class ChunkHolderMixin implements ChunkHolderTickEntry {
     @Override
     public ServerChunkCache.ChunkAndHolder rtxremix$tickEntry(LevelChunk chunk) {
         ServerChunkCache.ChunkAndHolder entry = rtxremix$tickEntry;
-        if (entry == null || entry.chunk != chunk) {
+        if (entry == null || entry.chunk() != chunk) {
             entry = new ServerChunkCache.ChunkAndHolder(chunk, (ChunkHolder) (Object) this);
             rtxremix$tickEntry = entry;
         }
