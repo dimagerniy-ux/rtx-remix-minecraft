@@ -6,12 +6,14 @@ package com.nvidia.rtxremix.minecraft.terrain.capture;
 
 import com.nvidia.rtxremix.RemixAPI;
 import com.nvidia.rtxremix.minecraft.light.BlockLightRuleManager;
+import com.nvidia.rtxremix.minecraft.light.LavaLights;
 import com.nvidia.rtxremix.minecraft.texture.BlockTextureManager;
 import com.nvidia.rtxremix.minecraft.light.LightEntry;
 import com.nvidia.rtxremix.minecraft.profiling.ProfileScope;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandler;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry;
-import net.fabricmc.fabric.api.renderer.v1.model.FabricBakedModel;
+import net.neoforged.neoforge.client.ChunkRenderTypeSet;
+import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import net.neoforged.neoforge.client.textures.FluidSpriteCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
@@ -41,7 +43,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * Per-block mesh emission for RTX Remix, designed to be driven from
@@ -75,7 +76,6 @@ public final class BlockQuadEmitter {
     private static final ThreadLocal<Boolean> threadNamed =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    private final RemixRenderContext renderContext = new RemixRenderContext();
     private final SingleThreadedRandomSource random = new SingleThreadedRandomSource(42);
     private final BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
     private final BlockPos.MutableBlockPos neighborPos = new BlockPos.MutableBlockPos();
@@ -97,6 +97,18 @@ public final class BlockQuadEmitter {
     private static final int WATER_TOP_CACHE_WIDTH = SECTION_SIZE + WATER_TOP_CULL_RADIUS * 2;
     private static final int WATER_TOP_CACHE_CELL_COUNT =
             WATER_TOP_CACHE_WIDTH * SECTION_SIZE * WATER_TOP_CACHE_WIDTH;
+
+    // Exposed lava surfaces per LavaLights cell, gathered while the section's
+    // fluids are emitted and turned into one light per cell in finishSection.
+    private static final int LAVA_CELLS_PER_AXIS = SECTION_SIZE / LavaLights.CELL_SIZE;
+    private static final int LAVA_CELL_COUNT = LAVA_CELLS_PER_AXIS * LAVA_CELLS_PER_AXIS;
+    private final int[] lavaCellCount = new int[LAVA_CELL_COUNT];
+    private final float[] lavaCellSumX = new float[LAVA_CELL_COUNT];
+    private final float[] lavaCellSumY = new float[LAVA_CELL_COUNT];
+    private final float[] lavaCellSumZ = new float[LAVA_CELL_COUNT];
+    private boolean anyLavaSurface;
+    private final BlockPos.MutableBlockPos lavaCellOrigin = new BlockPos.MutableBlockPos();
+
     // BlockState render type is immutable; cache by raw state id to avoid a per-block virtual call.
     private static volatile RenderShape[] renderTypeByStateId = new RenderShape[0];
 
@@ -134,11 +146,6 @@ public final class BlockQuadEmitter {
      * pickle cluster rotates its pickles around the block.
      */
     private long modelRandomSeed = 42L;
-
-    private final Supplier<RandomSource> randomSupplier = () -> {
-        random.setSeed(modelRandomSeed);
-        return random;
-    };
 
     // Per-section state set by beginSection / processBlock
     /**
@@ -213,6 +220,13 @@ public final class BlockQuadEmitter {
 
         writer.beginSection(baseX, baseY, baseZ);
         lights.clear();
+        if (anyLavaSurface) {
+            Arrays.fill(lavaCellCount, 0);
+            Arrays.fill(lavaCellSumX, 0f);
+            Arrays.fill(lavaCellSumY, 0f);
+            Arrays.fill(lavaCellSumZ, 0f);
+            anyLavaSurface = false;
+        }
         topMask = bottomMask = eastMask = westMask = southMask = northMask = 0;
         Arrays.fill(opacity, 0);
         Arrays.fill(blockStateKnown, 0);
@@ -310,9 +324,9 @@ public final class BlockQuadEmitter {
 
     /**
      * Emits block model quads for the current block. Called from the
-     * isOpaqueFullCube redirect for blocks vanilla would hand to renderBlock,
+     * isSolidRender redirect for blocks vanilla would hand to renderBatched,
      * a call the build then skips by reporting the block invisible. Bypasses
-     * FRAPI/Indigo and writes directly to the DirectQuadWriter.
+     * vanilla's block renderer and writes directly to the DirectQuadWriter.
      */
     public void emitBlock(BlockState state, BlockPos pos, BlockAndTintGetter world) {
         blockCount++;
@@ -354,10 +368,18 @@ public final class BlockQuadEmitter {
         BakedModel model = blockRenderManager.getBlockModel(state);
         String layerName = classifyBlockLayer(state);
 
-        if (model instanceof FabricBakedModel fbm && !fbm.isVanillaAdapter()) {
-            emitFrapiBlock(world, state, model, fbm, layerName, lx, ly, lz);
-        } else {
+        // NeoForge's SectionCompiler resolves the same ModelData and render types
+        // before it draws a block. A vanilla model reports the region's data back
+        // unchanged and its one chunk layer, so it keeps the plain getQuads path the
+        // allocation-free model ports hook; only a model that carries data or spans
+        // several layers takes the per-layer path.
+        ModelData modelData = model.getModelData(world, pos, state, world.getModelData(pos));
+        random.setSeed(modelRandomSeed);
+        ChunkRenderTypeSet renderTypes = model.getRenderTypes(state, random, modelData);
+        if (modelData == ModelData.EMPTY && countRenderTypes(renderTypes) <= 1) {
             emitVanillaBlock(world, state, model, layerName, lx, ly, lz);
+        } else {
+            emitLayeredBlock(world, state, model, modelData, renderTypes, layerName, lx, ly, lz);
         }
     }
 
@@ -372,6 +394,45 @@ public final class BlockQuadEmitter {
         int lz = SectionPos.sectionRelative(pos.getZ());
         cacheLocalFluidState(localIndex(lx, ly, lz), fluidState);
         emitFluidQuads(world, fluidState, lx, ly, lz);
+        if (fluidState.is(FluidTags.LAVA)) {
+            gatherLavaSurface(world, fluidState, lx, ly, lz);
+        }
+    }
+
+    /**
+     * Counts a lava block toward its {@link LavaLights} cell when its surface
+     * is open: not under more lava, and not capped by a full opaque block that
+     * would bury the cell's light.
+     */
+    private void gatherLavaSurface(BlockAndTintGetter world, FluidState fluidState,
+                                   int lx, int ly, int lz) {
+        int wx = baseX + lx, wy = baseY + ly, wz = baseZ + lz;
+        FluidState above = getCachedFluidState(world, wx, wy + 1, wz);
+        if (above.getType().isSame(fluidState.getType())) return;
+        BlockState aboveState = getCachedBlockState(world, wx, wy + 1, wz);
+        neighborPos.set(wx, wy + 1, wz);
+        if (aboveState.isSolidRender(world, neighborPos)) return;
+
+        int cell = (lz / LavaLights.CELL_SIZE) * LAVA_CELLS_PER_AXIS + lx / LavaLights.CELL_SIZE;
+        lavaCellCount[cell]++;
+        lavaCellSumX[cell] += wx + 0.5f;
+        lavaCellSumY[cell] += wy + fluidState.getOwnHeight();
+        lavaCellSumZ[cell] += wz + 0.5f;
+        anyLavaSurface = true;
+    }
+
+    private void addLavaLights() {
+        if (!anyLavaSurface) return;
+        for (int cell = 0; cell < LAVA_CELL_COUNT; cell++) {
+            int count = lavaCellCount[cell];
+            if (count == 0) continue;
+            lavaCellOrigin.set(
+                    baseX + (cell % LAVA_CELLS_PER_AXIS) * LavaLights.CELL_SIZE,
+                    baseY,
+                    baseZ + (cell / LAVA_CELLS_PER_AXIS) * LavaLights.CELL_SIZE);
+            lights.add(LavaLights.cell(lavaCellOrigin, count,
+                    lavaCellSumX[cell] / count, lavaCellSumY[cell] / count, lavaCellSumZ[cell] / count));
+        }
     }
 
     /**
@@ -382,6 +443,7 @@ public final class BlockQuadEmitter {
         try (ProfileScope finishScope = ProfileScope.begin("finishSection")) {
             finishScope.blockCount(blockCount).fluidCount(fluidCount);
             SectionMeshData meshData = writer.buildMeshData();
+            addLavaLights();
             SectionBlockData result = new SectionBlockData(
                     sectionPos, meshData, List.copyOf(lights), topMask, bottomMask,
                     eastMask, westMask, southMask, northMask,
@@ -500,46 +562,45 @@ public final class BlockQuadEmitter {
                 null, 0, 0, 1, 1, layerName, texManager);
     }
 
-    // --- FRAPI model path ---
+    // --- Layered model path ---
 
-    private BlockState frapiState;
-    private BlockAndTintGetter frapiWorld;
-
-    private boolean frapiCullTest(Direction dir) {
-        return !shouldDrawBlockSide(frapiWorld, frapiState, dir);
+    private static int countRenderTypes(ChunkRenderTypeSet renderTypes) {
+        List<RenderType> layers = RenderType.chunkBufferLayers();
+        int count = 0;
+        for (int i = 0; i < layers.size(); i++) {
+            if (renderTypes.contains(layers.get(i))) count++;
+        }
+        return count;
     }
 
-    private void emitFrapiBlock(BlockAndTintGetter world, BlockState state,
-                                 BakedModel model, FabricBakedModel fbm,
-                                 String layerName, float lx, float ly, float lz) {
+    /**
+     * Emits a model that NeoForge draws through {@code ModelData} or across
+     * several chunk layers, one layer at a time as vanilla's section build does.
+     * Each layer keeps the block's own Remix layer unless the model splits the
+     * block across layers, where the layer it is drawn in decides.
+     */
+    private void emitLayeredBlock(BlockAndTintGetter world, BlockState state,
+                                  BakedModel model, ModelData modelData,
+                                  ChunkRenderTypeSet renderTypes, String blockLayerName,
+                                  float lx, float ly, float lz) {
+        boolean split = countRenderTypes(renderTypes) > 1;
+        List<RenderType> layers = RenderType.chunkBufferLayers();
+        for (int i = 0; i < layers.size(); i++) {
+            RenderType renderType = layers.get(i);
+            if (!renderTypes.contains(renderType)) continue;
+            String layerName = split ? classifyRenderType(renderType) : blockLayerName;
+            for (Direction dir : ALL_DIRECTIONS) {
+                if (dir != null && !shouldDrawBlockSide(world, state, dir)) {
+                    continue;
+                }
 
-        frapiState = state;
-        frapiWorld = world;
+                random.setSeed(modelRandomSeed);
+                List<BakedQuad> bakedQuads = model.getQuads(state, dir, random, modelData, renderType);
 
-        renderContext.prepare(world, state, mutablePos.immutable(), this::frapiCullTest);
-
-        fbm.emitBlockQuads(world, state, mutablePos.immutable(), randomSupplier, renderContext);
-
-        List<SectionBlockData.BlockQuad> frapiQuads = renderContext.harvest();
-        for (SectionBlockData.BlockQuad fq : frapiQuads) {
-            float[] fqPos = fq.positions();
-            for (int v = 0; v < 4; v++) {
-                tempPositions[v * 3]     = fqPos[v * 3]     + lx;
-                tempPositions[v * 3 + 1] = fqPos[v * 3 + 1] + ly;
-                tempPositions[v * 3 + 2] = fqPos[v * 3 + 2] + lz;
+                for (BakedQuad bq : bakedQuads) {
+                    stageBakedQuad(bq, layerName, state, world, lx, ly, lz);
+                }
             }
-
-            // The model leaves the block tint to the renderer, which Indigo
-            // applies to every quad with a color index; vanilla quads get theirs
-            // in stageBakedQuad.
-            int color = fq.color();
-            if (fq.colorIndex() >= 0 && blockColors != null) {
-                color = tintFrapiColor(color, getBlockTint(state, world, fq.colorIndex()));
-            }
-            writer.stageQuad(tempPositions, fq.uvs(), fq.nx(), fq.ny(), fq.nz(),
-                    color, fq.spriteId(),
-                    fq.spriteU0(), fq.spriteV0(), fq.spriteU1(), fq.spriteV1(),
-                    layerName);
         }
 
         writer.flushBlock(texManager);
@@ -549,20 +610,19 @@ public final class BlockQuadEmitter {
 
     private void emitFluidQuads(BlockAndTintGetter world, FluidState fluidState,
                                  int lx, int ly, int lz) {
-        FluidRenderHandler handler = FluidRenderHandlerRegistry.INSTANCE.get(fluidState.getType());
-        if (handler == null) return;
-
         fluidPos.set(baseX + lx, baseY + ly, baseZ + lz);
 
-        TextureAtlasSprite[] fluidSprites = handler.getFluidSprites(world, fluidPos, fluidState);
-        if (fluidSprites == null || fluidSprites.length < 2) return;
+        TextureAtlasSprite[] fluidSprites = FluidSpriteCache.getFluidSprites(world, fluidPos, fluidState);
+        if (fluidSprites == null || fluidSprites.length < 2
+                || fluidSprites[0] == null || fluidSprites[1] == null) return;
+        IClientFluidTypeExtensions fluidType = IClientFluidTypeExtensions.of(fluidState);
 
         boolean isLava = fluidState.is(FluidTags.LAVA);
         boolean isWater = !isLava;
         String layer = isLava ? "solid" : "translucent";
         int fluidColor = isWater
-                ? getCachedWaterColor(handler, world, fluidState, lx, ly, lz)
-                : handler.getFluidColor(world, fluidPos, fluidState);
+                ? getCachedWaterColor(fluidType, world, fluidState, lx, ly, lz)
+                : fluidType.getTintColor(fluidState, world, fluidPos);
         int r = (fluidColor >> 16) & 0xFF, g = (fluidColor >> 8) & 0xFF, b = fluidColor & 0xFF;
         int color = 0xFF000000 | (r << 16) | (g << 8) | b;
 
@@ -889,12 +949,12 @@ public final class BlockQuadEmitter {
         return count > 0 ? totalHeight / count : 0.5f;
     }
 
-    private int getCachedWaterColor(FluidRenderHandler handler, BlockAndTintGetter world,
+    private int getCachedWaterColor(IClientFluidTypeExtensions fluidType, BlockAndTintGetter world,
                                     FluidState fluidState, int lx, int ly, int lz) {
         int cell = ((ly >> 3) << 4) | ((lz >> 2) << 2) | (lx >> 2);
         int bit = 1 << cell;
         if ((waterColorKnownMask & bit) == 0) {
-            waterColorCache[cell] = handler.getFluidColor(world, fluidPos, fluidState);
+            waterColorCache[cell] = fluidType.getTintColor(fluidState, world, fluidPos);
             waterColorKnownMask |= bit;
         }
         return waterColorCache[cell];
@@ -993,21 +1053,6 @@ public final class BlockQuadEmitter {
     }
 
     /**
-     * A FRAPI quad's vertex color under its block tint, as Indigo's
-     * {@code ColorHelper.multiplyColor} computes it: each channel multiplied,
-     * rounding down. The tint is treated as opaque, as Indigo's
-     * {@code BlockRenderInfo.blockColor} makes it, so the vertex alpha is kept.
-     * A block without a color provider has the tint -1, which is white and
-     * changes nothing.
-     */
-    static int tintFrapiColor(int vertexColor, int tint) {
-        int red = ((vertexColor >>> 16) & 0xFF) * ((tint >>> 16) & 0xFF) / 0xFF;
-        int green = ((vertexColor >>> 8) & 0xFF) * ((tint >>> 8) & 0xFF) / 0xFF;
-        int blue = (vertexColor & 0xFF) * (tint & 0xFF) / 0xFF;
-        return (vertexColor & 0xFF000000) | (red << 16) | (green << 8) | blue;
-    }
-
-    /**
      * The terrain layer a block's quads are bucketed under, by
      * {@link BlockTextureManager#layerType} name. A held block item asks the same
      * question, so it shades as its placed counterpart does.
@@ -1019,7 +1064,10 @@ public final class BlockQuadEmitter {
         // translucent material with the frame as a diffuse layer.
         // Stained glass is already translucent and keeps vanilla's layer.
         if (state.is(Blocks.GLASS) || state.is(Blocks.GLASS_PANE)) return "glass";
-        RenderType layer = ItemBlockRenderTypes.getChunkRenderType(state);
+        return classifyRenderType(ItemBlockRenderTypes.getChunkRenderType(state));
+    }
+
+    private static String classifyRenderType(RenderType layer) {
         if (layer == RenderType.solid()) return "solid";
         if (layer == RenderType.cutoutMipped()) return "cutout_mipped";
         if (layer == RenderType.cutout()) return "cutout";
