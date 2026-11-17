@@ -241,6 +241,14 @@ public final class BlockQuadEmitter {
         fluidCount = 0;
     }
 
+    /** Cancels a fallback capture after a modded block renderer throws. */
+    public void abortSection() {
+        if (!active) return;
+        writer.releaseBuffers();
+        lights.clear();
+        active = false;
+    }
+
     public boolean isActive() { return active; }
     public int getBlockCount() { return blockCount; }
     public int getFluidCount() { return fluidCount; }
