@@ -151,7 +151,7 @@ class RtxOptionFactoryTest {
             callbacksField.setAccessible(true);
             return (OptionInstance.SliderableValueSet<?>) callbacksField.get(option);
         } catch (ReflectiveOperationException e) {
-            throw new AssertionError("Could not inspect SimpleOption callbacks", e);
+            throw new AssertionError("Could not inspect OptionInstance values", e);
         }
     }
 
