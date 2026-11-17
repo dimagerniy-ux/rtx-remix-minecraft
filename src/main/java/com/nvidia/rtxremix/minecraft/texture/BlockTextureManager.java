@@ -215,10 +215,14 @@ public class BlockTextureManager {
             NativeImage img = ((SpriteContentsAccessor) contents).getImage();
             if (img == null) return null;
             BitSet transparent = null;
+            // Animated NativeImages may contain many frames: sample only the first
+            // frame, exactly as the original full-resolution transparency scan did.
+            int frameW = contents.width();
+            int frameH = contents.height();
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
-                    if (((img.getPixelRGBA(Math.min(img.getWidth() - 1, x * img.getWidth() / w),
-                            Math.min(img.getHeight() - 1, y * img.getHeight() / h)) >> 24) & 0xFF) < 255) {
+                    if (((img.getPixelRGBA(Math.min(frameW - 1, x * frameW / w),
+                            Math.min(frameH - 1, y * frameH / h)) >> 24) & 0xFF) < 255) {
                         if (transparent == null) transparent = new BitSet(w * h);
                         transparent.set(y * w + x);
                     }
