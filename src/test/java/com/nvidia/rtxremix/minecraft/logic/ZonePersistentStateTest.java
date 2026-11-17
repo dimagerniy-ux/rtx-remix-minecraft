@@ -4,7 +4,6 @@
  */
 package com.nvidia.rtxremix.minecraft.logic;
 
-import net.neoforged.neoforge.common.IOUtilities;
 import net.minecraft.SharedConstants;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -13,16 +12,15 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.neoforged.neoforge.common.IOUtilities;
 
 class ZonePersistentStateTest {
 
