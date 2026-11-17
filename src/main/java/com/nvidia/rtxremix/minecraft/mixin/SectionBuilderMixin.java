@@ -5,7 +5,6 @@
 package com.nvidia.rtxremix.minecraft.mixin;
 
 import com.nvidia.rtxremix.minecraft.texture.BlockTextureManager;
-import java.util.List;
 import net.minecraft.client.renderer.SectionBufferBuilderPack;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.chunk.RenderChunkRegion;
@@ -25,13 +24,14 @@ import com.nvidia.rtxremix.minecraft.profiling.ProfileScope;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.nvidia.rtxremix.minecraft.RtxRemixMod;
-import net.neoforged.neoforge.client.event.AddSectionGeometryEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import java.util.List;
+import net.neoforged.neoforge.client.event.AddSectionGeometryEvent;
 
 /**
  * Intercepts chunk section builds to capture block/fluid mesh data for
@@ -39,10 +39,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * of running a separate pass.
  *
  * <ul>
- *   <li>{@code isOpaqueFullCube} redirect: captures opacity bitmap,
+ *   <li>{@code isSolidRender} redirect: captures opacity bitmap,
  *       face masks, and light entries for every block, and emits the
  *       block's model quads directly to the Remix interleaved buffer.</li>
- *   <li>{@code getRenderType} redirect: reports every block invisible while
+ *   <li>{@code getRenderShape} redirect: reports every block invisible while
  *       capturing, so vanilla skips its layer buffers, matrix stack, and
  *       {@code renderBlock} for geometry that is never drawn.</li>
  *   <li>{@code renderFluid} redirect: emits fluid quads directly,
